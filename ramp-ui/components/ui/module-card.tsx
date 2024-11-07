@@ -1,6 +1,6 @@
 import React from 'react';
 import {FaLock, FaUnlock} from 'react-icons/fa';
-import {Module} from './ModulePlanner';
+import {Module} from './module-planner';
 
 type ModuleCardProps = {
     module: Module;
