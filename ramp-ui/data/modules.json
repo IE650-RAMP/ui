@@ -3,7 +3,7 @@
         "id": 1,
         "code": "CS101",
         "name": "Introduction to Programming",
-        "semester": 1,
+        "semesters": [1, 3],
         "ects": 5,
         "prerequisites": []
     },
@@ -11,7 +11,7 @@
         "id": 2,
         "code": "MA101",
         "name": "Mathematics I",
-        "semester": 1,
+        "semesters": [1, 3],
         "ects": 6,
         "prerequisites": []
     },
@@ -19,7 +19,7 @@
         "id": 3,
         "code": "WD101",
         "name": "Web Development Basics",
-        "semester": 1,
+        "semesters": [1, 5, 6],
         "ects": 4,
         "prerequisites": []
     },
@@ -27,7 +27,7 @@
         "id": 4,
         "code": "DB201",
         "name": "Database Systems",
-        "semester": 2,
+        "semesters": [2, 5],
         "ects": 5,
         "prerequisites": ["CS101"]
     },
@@ -35,7 +35,7 @@
         "id": 5,
         "code": "SE201",
         "name": "Software Engineering",
-        "semester": 2,
+        "semesters": [2, 4],
         "ects": 6,
         "prerequisites": ["CS101"]
     },
@@ -43,7 +43,7 @@
         "id": 6,
         "code": "MA102",
         "name": "Mathematics II",
-        "semester": 2,
+        "semesters": [2],
         "ects": 6,
         "prerequisites": ["MA101"]
     },
@@ -51,7 +51,7 @@
         "id": 7,
         "code": "CS302",
         "name": "Algorithms and Data Structures",
-        "semester": 3,
+        "semesters": [3],
         "ects": 6,
         "prerequisites": ["CS101", "MA101"]
     },
@@ -59,15 +59,15 @@
         "id": 8,
         "code": "OS301",
         "name": "Operating Systems",
-        "semester": 3,
+        "semesters": [3],
         "ects": 5,
-        "prerequisites": ["CS101"]
+        "prerequisites": []
     },
     {
         "id": 9,
         "code": "CN401",
         "name": "Computer Networks",
-        "semester": 4,
+        "semesters": [4],
         "ects": 5,
         "prerequisites": ["CS101"]
     },
@@ -75,7 +75,7 @@
         "id": 10,
         "code": "AI401",
         "name": "Artificial Intelligence",
-        "semester": 4,
+        "semesters": [4],
         "ects": 6,
         "prerequisites": ["CS302"]
     },
@@ -83,7 +83,7 @@
         "id": 11,
         "code": "ST401",
         "name": "Software Testing",
-        "semester": 4,
+        "semesters": [4],
         "ects": 4,
         "prerequisites": ["SE201"]
     },
@@ -91,7 +91,7 @@
         "id": 12,
         "code": "MA501",
         "name": "Mobile App Development",
-        "semester": 5,
+        "semesters": [5],
         "ects": 6,
         "prerequisites": ["CS101", "WD101"]
     },
@@ -99,7 +99,7 @@
         "id": 13,
         "code": "WS501",
         "name": "Web Application Security",
-        "semester": 5,
+        "semesters": [5],
         "ects": 5,
         "prerequisites": ["WD101", "DB201"]
     },
@@ -107,7 +107,7 @@
         "id": 14,
         "code": "DM601",
         "name": "Data Mining",
-        "semester": 6,
+        "semesters": [6],
         "ects": 6,
         "prerequisites": ["DB201", "CS302"]
     },
@@ -115,7 +115,7 @@
         "id": 15,
         "code": "ML601",
         "name": "Machine Learning",
-        "semester": 6,
+        "semesters": [6],
         "ects": 6,
         "prerequisites": ["CS302", "AI401"]
     },
@@ -123,7 +123,7 @@
         "id": 16,
         "code": "SPM601",
         "name": "Software Project Management",
-        "semester": 6,
+        "semesters": [6],
         "ects": 4,
         "prerequisites": ["SE201", "ST401"]
     }

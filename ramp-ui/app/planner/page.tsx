@@ -10,7 +10,7 @@ import { ModulePlanner } from "@/components/ui/module-planner";
 
 export default function Planner() {
     return (
-        <div className="grid grid-cols-2 gap-4">
+        <div>
             <ModulePlanner />
         </div>
     );
