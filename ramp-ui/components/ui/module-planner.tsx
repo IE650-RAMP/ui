@@ -16,6 +16,16 @@ import {v4 as uuidv4} from 'uuid';
 import {Progress} from "@/components/ui/progress";
 import modulesData from '../../data/modules.json';
 import {ModuleCard} from './module-card';
+import {
+    Drawer,
+    DrawerClose,
+    DrawerContent,
+    DrawerDescription,
+    DrawerFooter,
+    DrawerHeader,
+    DrawerTitle,
+    DrawerTrigger,
+} from "@/components/ui/drawer";
 
 type Module = {
     uuid: string;
@@ -52,6 +62,7 @@ export const ModulePlanner = () => {
     const [dialogModules, setDialogModules] = useState<Module[]>([]);
     const [moduleToDeselect, setModuleToDeselect] = useState<Module | null>(null);
     const [hideUnfulfilled, setHideUnfulfilled] = useState(false);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     useEffect(() => {
         fetchModuleData();
@@ -230,51 +241,51 @@ export const ModulePlanner = () => {
         return filtered;
     }, [modules, searchTerm, hideUnfulfilled, selectedModules, selectedModuleCodes]);
 
-    const renderProgressTracking = () => {
-    const progress = calculateSubjectAreaProgress();
+    const renderProgressDrawer = () => {
+        const progress = calculateSubjectAreaProgress();
 
-    return (
-        <Card className="mb-8">
-            <CardHeader>
-                <CardTitle>Study Progress by Subject Area</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-6">
-                    {subjectAreaRequirements.map((area) => {
+        return (
+            <DrawerContent className="bg-white">
+                {/* Drawer handle */}
+                <div className="flex justify-center py-2">
+                    <div className="w-48 h-1.5 bg-gray-300 rounded"></div>
+                </div>
+                <DrawerHeader>
+                    <DrawerTitle>Progress</DrawerTitle>
+                    <DrawerDescription>
+                        Track your progress in each subject area.
+                    </DrawerDescription>
+                </DrawerHeader>
+                <div className="space-y-6 p-4">
+                    {subjectAreaRequirements.map(area => {
                         const currentCredits = progress.get(area.name) || 0;
                         const progressPercentage = Math.min(
                             100,
                             (currentCredits / area.maxCredits) * 100
                         );
 
-                        // Determine if the credits are out of bounds
                         const isOutOfLimits =
                             currentCredits < area.minCredits || currentCredits > area.maxCredits;
                         const barColor = isOutOfLimits ? 'bg-red-300' : 'bg-black';
 
                         return (
-                            <div key={area.name} className="grid grid-cols-[180px_1fr_120px] items-center gap-4">
-                                <span className="font-medium text-sm">
-                                    {area.name}
-                                </span>
-                                <div className="relative h-4 bg-gray-300 rounded overflow-hidden">
-                                    {/* Filled bar with animation */}
+                            <div key={area.name} className="grid grid-cols-[150px_1fr_100px] items-center gap-4">
+                                <span className="text-xs font-medium">{area.name}</span>
+                                <div className="relative h-3 bg-gray-300 rounded overflow-hidden">
                                     <div
                                         className={`${barColor} h-full rounded transition-all duration-300`}
-                                        style={{ width: `${progressPercentage}%` }}
+                                        style={{width: `${progressPercentage}%`}}
                                     />
-
-                                    {/* Minimum credits indicator */}
                                     <div
-                                        className="absolute h-4 w-0.5 bg-black top-0"
+                                        className="absolute h-3 w-0.5 bg-black top-0"
                                         style={{
                                             left: `${(area.minCredits / area.maxCredits) * 100}%`,
-                                            zIndex: 1
+                                            zIndex: 1,
                                         }}
                                         title={`Minimum required: ${area.minCredits} ECTS`}
                                     />
                                 </div>
-                                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
                                     {currentCredits}/{area.minCredits}
                                     {area.maxCredits > area.minCredits && `-${area.maxCredits}`} ECTS
                                 </span>
@@ -282,11 +293,14 @@ export const ModulePlanner = () => {
                         );
                     })}
                 </div>
-            </CardContent>
-        </Card>
-    );
-};
-
+                <DrawerFooter>
+                    <DrawerClose asChild>
+                        <Button variant="outline">Close</Button>
+                    </DrawerClose>
+                </DrawerFooter>
+            </DrawerContent>
+        );
+    };
 
 
     const renderSemesterColumns = () => {
@@ -326,7 +340,6 @@ export const ModulePlanner = () => {
     return (
         <div className="container mx-auto p-4 max-w-full">
             <h2 className="text-2xl font-bold mb-4">Module Planner</h2>
-            {renderProgressTracking()}
             <div className="mb-4 flex items-center gap-4">
                 <input
                     type="text"
@@ -371,6 +384,16 @@ export const ModulePlanner = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <div className="fixed bottom-4 left-0 right-0 flex justify-center">
+                <Drawer>
+                    <DrawerTrigger asChild>
+                        <Button className="bg-black text-white">
+                            Show Progress
+                        </Button>
+                    </DrawerTrigger>
+                    {renderProgressDrawer()}
+                </Drawer>
+            </div>
         </div>
     );
 };
