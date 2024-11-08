@@ -51,6 +51,17 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
         return !prerequisitesMet || selectedElsewhere;
     };
 
+    const arePrerequisitesMet = (module: Module): boolean => {
+        return module.prerequisites.every(prereqCode => {
+            const selectedPrereq = allModules.find(m =>
+                m.code === prereqCode &&
+                selectedModules.includes(m.uuid) &&
+                Math.min(...m.semesters) < currentSemester
+            );
+            return !!selectedPrereq;
+        });
+    };
+
     const getPrerequisiteNames = (module: Module): string => {
         return module.prerequisites
             .map(prereqCode => `Module ${prereqCode}`)
@@ -75,6 +86,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
         }
     };
 
+
     const getDarkerModuleColor = (module: Module) => {
         if (isModuleGreyedOut(module)) {
             return `hsl(0, 0%, 50%)`; // Darker grey for greyed-out modules
@@ -86,9 +98,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
     };
 
     const greyedOut = isModuleGreyedOut(module);
-    const prerequisitesMet = module.prerequisites.every(prereqCode =>
-        selectedModuleCodes.includes(prereqCode)
-    );
+    const prerequisitesMet = arePrerequisitesMet(module);
 
     return (
         <>
@@ -102,7 +112,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                 className={`p-4 rounded-md text-white ${
                     greyedOut ? 'cursor-not-allowed' : 'cursor-pointer'
                 } hover:opacity-90 transition-opacity duration-200 ${
-                    isSelected ? 'border-2 border-black' : ''
+                    isSelected ? 'border-black' : ''
                 } relative`}
                 role="button"
                 aria-pressed={isSelected}
@@ -124,7 +134,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                     }
                 }}
             >
-                {/* Module details */}
+                {/* Rest of the JSX remains the same... */}
                 <h3 className="font-semibold">
                     {module.name} ({module.code})
                 </h3>
@@ -135,9 +145,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                     </p>
                 )}
 
-                {/* Icons and button underneath the text */}
                 <div className="flex justify-between items-center mt-4">
-                    {/* Icons on the left */}
                     <div className="flex space-x-2">
                         {selectedElsewhere && (
                             <div
@@ -161,7 +169,6 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         )}
                     </div>
 
-                    {/* Button on the right */}
                     <button
                         className="px-3 py-1 rounded transition"
                         style={{

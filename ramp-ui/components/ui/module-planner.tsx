@@ -63,6 +63,7 @@ export const ModulePlanner = () => {
     const [moduleToDeselect, setModuleToDeselect] = useState<Module | null>(null);
     const [hideUnfulfilled, setHideUnfulfilled] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [availableSemesters, setAvailableSemesters] = useState<number[]>([]);
 
     useEffect(() => {
         fetchModuleData();
@@ -85,10 +86,14 @@ export const ModulePlanner = () => {
                 module.semesters.map(semester => ({
                     ...module,
                     uuid: uuidv4(),
-                    semesters: [semester], // Assign only one semester per module instance
+                    semesters: [semester],
                 }))
             );
 
+            // Get all unique semesters from the data and sort them
+            const allSemesters = [...new Set(modulesData.flatMap(m => m.semesters))].sort((a, b) => a - b);
+
+            setAvailableSemesters(allSemesters);
             setModules(modulesWithUUID);
         } catch (error) {
             console.error('Error fetching module data:', error);
@@ -320,13 +325,9 @@ export const ModulePlanner = () => {
 
 
     const renderSemesterColumns = () => {
-        const semesters = [
-            ...new Set(filteredModules.flatMap(module => module.semesters)),
-        ].sort((a, b) => a - b);
-
         return (
             <div className="flex flex-wrap gap-4 overflow-x-auto">
-                {semesters.map(semester => (
+                {availableSemesters.map(semester => (
                     <Card key={semester} className="w-80 flex-shrink-0">
                         <CardHeader>
                             <CardTitle>Semester {semester}</CardTitle>
@@ -356,9 +357,10 @@ export const ModulePlanner = () => {
         );
     };
 
+
     return (
         <div className="container mx-auto p-4 max-w-full">
-            <h2 className="text-2xl font-bold mb-4">Module Planner</h2>
+            <h1 className="text-4xl font-bold mb-4">Module Planner</h1>
             <div className="mb-4 flex items-center gap-4">
                 <input
                     type="text"
@@ -373,7 +375,7 @@ export const ModulePlanner = () => {
                         checked={hideUnfulfilled}
                         onCheckedChange={(checked) => setHideUnfulfilled(checked === true)}
                     />
-                    <label htmlFor="hideUnfulfilled" className="text-sm">
+                    <label htmlFor="hideUnfulfilled" className="text-sm font-bold">
                         Hide modules with unfulfilled prerequisites
                     </label>
                 </div>
