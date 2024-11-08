@@ -123,10 +123,24 @@ export const ModulePlanner = () => {
         );
     };
 
+    const arePrerequisitesFulfilled = (module: Module, currentSemester: number): boolean => {
+        return module.prerequisites.every(prereqCode => {
+            // Find any selected module that matches the prerequisite code
+            const selectedPrereq = modules.find(m =>
+                m.code === prereqCode &&
+                selectedModules.includes(m.uuid) &&
+                Math.min(...m.semesters) < currentSemester // Must be in earlier semester
+            );
+            return !!selectedPrereq;
+        });
+    };
+
+
     const handleModuleSelection = (moduleUuid: string) => {
         const clickedModule = modules.find(m => m.uuid === moduleUuid);
         if (!clickedModule) return;
 
+        const currentSemester = Math.min(...clickedModule.semesters);
         const isSelected = selectedModules.includes(moduleUuid);
 
         if (isSelected) {
@@ -139,21 +153,23 @@ export const ModulePlanner = () => {
                 deselectModule(moduleUuid);
             }
         } else {
-            // Find if any instance of this module (same code) is already selected
+            // Check prerequisites before allowing selection
+            if (!arePrerequisitesFulfilled(clickedModule, currentSemester)) {
+                return; // Don't allow selection if prerequisites aren't met
+            }
+
             const existingSelectedInstance = modules.find(m =>
                 selectedModules.includes(m.uuid) &&
                 m.code === clickedModule.code
             );
 
             if (existingSelectedInstance) {
-                // Replace the existing selection with the new one
                 setSelectedModules(prev =>
                     prev
                         .filter(uuid => uuid !== existingSelectedInstance.uuid)
                         .concat(moduleUuid)
                 );
             } else {
-                // Select the new module
                 setSelectedModules(prev => [...prev, moduleUuid]);
             }
         }
@@ -218,6 +234,7 @@ export const ModulePlanner = () => {
         setSearchTerm(e.target.value);
     };
 
+    // Modify filteredModules to use the new prerequisite check
     const filteredModules = useMemo(() => {
         let filtered = modules;
 
@@ -231,15 +248,14 @@ export const ModulePlanner = () => {
 
         if (hideUnfulfilled) {
             filtered = filtered.filter(module => {
-                const prerequisitesMet = module.prerequisites.every(prereqCode =>
-                    selectedModuleCodes.includes(prereqCode)
-                );
-                return prerequisitesMet || selectedModules.includes(module.uuid);
+                const currentSemester = Math.min(...module.semesters);
+                return arePrerequisitesFulfilled(module, currentSemester) ||
+                    selectedModules.includes(module.uuid);
             });
         }
 
         return filtered;
-    }, [modules, searchTerm, hideUnfulfilled, selectedModules, selectedModuleCodes]);
+    }, [modules, searchTerm, hideUnfulfilled, selectedModules]);
 
     const renderProgressDrawer = () => {
         const progress = calculateSubjectAreaProgress();
@@ -327,6 +343,9 @@ export const ModulePlanner = () => {
                                             onSelect={handleModuleSelection}
                                             selectedModuleCodes={selectedModuleCodes}
                                             selectedElsewhere={isModuleSelectedElsewhere(module)}
+                                            currentSemester={semester}
+                                            allModules={modules}
+                                            selectedModules={selectedModules}
                                         />
                                     ))}
                             </div>

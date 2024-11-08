@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { FaLock, FaUnlock } from 'react-icons/fa';
-import { Copy } from "lucide-react"; // Icon for indicating selection in other semesters
+import React, {useState} from 'react';
+import {FaLock, FaUnlock} from 'react-icons/fa';
+import {Copy} from "lucide-react"; // Icon for indicating selection in other semesters
 
 type Module = {
     uuid: string;
@@ -18,24 +18,35 @@ type ModuleCardProps = {
     onSelect: (moduleUuid: string) => void;
     selectedModuleCodes: string[];
     selectedElsewhere: boolean;
+    currentSemester: number;
+    allModules: Module[];
+    selectedModules: string[];
 };
 
 export const ModuleCard: React.FC<ModuleCardProps> = ({
-    module,
-    isSelected,
-    onSelect,
-    selectedModuleCodes,
-    selectedElsewhere,
-}) => {
+                                                          module,
+                                                          isSelected,
+                                                          onSelect,
+                                                          selectedModuleCodes,
+                                                          selectedElsewhere,
+                                                          currentSemester,
+                                                          allModules,
+                                                          selectedModules,
+                                                      }) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     const isModuleGreyedOut = (module: Module) => {
         if (isSelected) return false;
 
-        // Module is greyed out if prerequisites are not met or if it is selected elsewhere
-        const prerequisitesMet = module.prerequisites.every(prereqCode =>
-            selectedModuleCodes.includes(prereqCode)
-        );
+        // Check if prerequisites are met in earlier semesters
+        const prerequisitesMet = module.prerequisites.every(prereqCode => {
+            const selectedPrereq = allModules.find(m =>
+                m.code === prereqCode &&
+                selectedModules.includes(m.uuid) &&
+                Math.min(...m.semesters) < currentSemester
+            );
+            return !!selectedPrereq;
+        });
 
         return !prerequisitesMet || selectedElsewhere;
     };
@@ -87,7 +98,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         onSelect(module.uuid);
                     }
                 }}
-                style={{ backgroundColor: getModuleColor(module) }}
+                style={{backgroundColor: getModuleColor(module)}}
                 className={`p-4 rounded-md text-white ${
                     greyedOut ? 'cursor-not-allowed' : 'cursor-pointer'
                 } hover:opacity-90 transition-opacity duration-200 ${
@@ -131,20 +142,20 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         {selectedElsewhere && (
                             <div
                                 className="p-1 rounded"
-                                style={{ backgroundColor: getDarkerModuleColor(module) }}
+                                style={{backgroundColor: getDarkerModuleColor(module)}}
                             >
-                                <Copy className="text-white" size={16} title="Already selected in another semester" />
+                                <Copy className="text-white" size={16} title="Already selected in another semester"/>
                             </div>
                         )}
                         {module.prerequisites.length > 0 && (
                             <div
                                 className="p-1 rounded"
-                                style={{ backgroundColor: getDarkerModuleColor(module) }}
+                                style={{backgroundColor: getDarkerModuleColor(module)}}
                             >
                                 {prerequisitesMet ? (
-                                    <FaUnlock className="text-white" title="Prerequisites met" />
+                                    <FaUnlock className="text-white" title="Prerequisites met"/>
                                 ) : (
-                                    <FaLock className="text-white" title="Prerequisites not met" />
+                                    <FaLock className="text-white" title="Prerequisites not met"/>
                                 )}
                             </div>
                         )}
@@ -180,7 +191,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 className="text-lg font-bold mb-4">{module.name} Details</h2>
-                        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vel ligula id nisi pharetra malesuada.</p>
+                        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vel ligula id nisi pharetra
+                            malesuada.</p>
                         <button
                             className="mt-4 px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 transition"
                             onClick={() => setIsDialogOpen(false)}
