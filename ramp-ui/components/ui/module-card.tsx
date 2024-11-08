@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FaLock, FaUnlock } from 'react-icons/fa';
 import { Copy } from "lucide-react"; // Icon for indicating selection in other semesters
 
@@ -27,6 +27,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
     selectedModuleCodes,
     selectedElsewhere,
 }) => {
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+
     const isModuleGreyedOut = (module: Module) => {
         if (isSelected) return false;
 
@@ -78,92 +80,116 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
     );
 
     return (
-        <div
-            onClick={() => {
-                if (!greyedOut) {
-                    onSelect(module.uuid);
-                }
-            }}
-            style={{ backgroundColor: getModuleColor(module) }}
-            className={`p-4 rounded-md text-white ${
-                greyedOut ? 'cursor-not-allowed' : 'cursor-pointer'
-            } hover:opacity-90 transition-opacity duration-200 ${
-                isSelected ? 'border-2 border-black' : ''
-            } relative`}
-            role="button"
-            aria-pressed={isSelected}
-            aria-disabled={greyedOut}
-            title={
-                selectedElsewhere
-                    ? 'This module is already selected in another semester'
-                    : greyedOut
-                        ? 'Prerequisites not met'
-                        : 'Click to select'
-            }
-            tabIndex={0}
-            onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
+        <>
+            <div
+                onClick={() => {
                     if (!greyedOut) {
                         onSelect(module.uuid);
                     }
+                }}
+                style={{ backgroundColor: getModuleColor(module) }}
+                className={`p-4 rounded-md text-white ${
+                    greyedOut ? 'cursor-not-allowed' : 'cursor-pointer'
+                } hover:opacity-90 transition-opacity duration-200 ${
+                    isSelected ? 'border-2 border-black' : ''
+                } relative`}
+                role="button"
+                aria-pressed={isSelected}
+                aria-disabled={greyedOut}
+                title={
+                    selectedElsewhere
+                        ? 'This module is already selected in another semester'
+                        : greyedOut
+                            ? 'Prerequisites not met'
+                            : 'Click to select'
                 }
-            }}
-        >
-            {/* Module details */}
-            <h3 className="font-semibold">
-                {module.name} ({module.code})
-            </h3>
-            <p className="text-sm">ECTS: {module.ects}</p>
-            {module.prerequisites.length > 0 && (
-                <p className="text-xs">
-                    Prerequisites: {getPrerequisiteNames(module)}
-                </p>
-            )}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (!greyedOut) {
+                            onSelect(module.uuid);
+                        }
+                    }
+                }}
+            >
+                {/* Module details */}
+                <h3 className="font-semibold">
+                    {module.name} ({module.code})
+                </h3>
+                <p className="text-sm">ECTS: {module.ects}</p>
+                {module.prerequisites.length > 0 && (
+                    <p className="text-xs">
+                        Prerequisites: {getPrerequisiteNames(module)}
+                    </p>
+                )}
 
-            {/* Icons and button underneath the text */}
-            <div className="flex justify-between items-center mt-4">
-                {/* Icons on the left */}
-                <div className="flex space-x-2">
-                    {selectedElsewhere && (
-                        <div
-                            className="p-1 rounded"
-                            style={{ backgroundColor: getDarkerModuleColor(module) }}
-                        >
-                            <Copy className="text-white" size={16} title="Already selected in another semester" />
-                        </div>
-                    )}
-                    {module.prerequisites.length > 0 && (
-                        <div
-                            className="p-1 rounded"
-                            style={{ backgroundColor: getDarkerModuleColor(module) }}
-                        >
-                            {prerequisitesMet ? (
-                                <FaUnlock className="text-white" title="Prerequisites met" />
-                            ) : (
-                                <FaLock className="text-white" title="Prerequisites not met" />
-                            )}
-                        </div>
-                    )}
+                {/* Icons and button underneath the text */}
+                <div className="flex justify-between items-center mt-4">
+                    {/* Icons on the left */}
+                    <div className="flex space-x-2">
+                        {selectedElsewhere && (
+                            <div
+                                className="p-1 rounded"
+                                style={{ backgroundColor: getDarkerModuleColor(module) }}
+                            >
+                                <Copy className="text-white" size={16} title="Already selected in another semester" />
+                            </div>
+                        )}
+                        {module.prerequisites.length > 0 && (
+                            <div
+                                className="p-1 rounded"
+                                style={{ backgroundColor: getDarkerModuleColor(module) }}
+                            >
+                                {prerequisitesMet ? (
+                                    <FaUnlock className="text-white" title="Prerequisites met" />
+                                ) : (
+                                    <FaLock className="text-white" title="Prerequisites not met" />
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Button on the right */}
+                    <button
+                        className="px-3 py-1 rounded transition"
+                        style={{
+                            backgroundColor: greyedOut ? 'hsl(0, 0%, 50%)' : getDarkerModuleColor(module),
+                            color: 'white',
+                            cursor: greyedOut ? 'not-allowed' : 'pointer',
+                        }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsDialogOpen(true);
+                        }}
+                        disabled={greyedOut}
+                    >
+                        Details
+                    </button>
                 </div>
-
-                {/* Button on the right */}
-                <button
-                    className="px-3 py-1 rounded transition"
-                    style={{
-                        backgroundColor: greyedOut ? 'hsl(0, 0%, 50%)' : getDarkerModuleColor(module),
-                        color: 'white',
-                        cursor: greyedOut ? 'not-allowed' : 'pointer',
-                    }}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        // Logic to extend details
-                    }}
-                    disabled={greyedOut}
-                >
-                    Details
-                </button>
             </div>
-        </div>
+
+            {/* Dialog */}
+            {isDialogOpen && (
+                <div
+                    className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                    onClick={() => setIsDialogOpen(false)}
+                >
+                    <div
+                        className="bg-white p-6 rounded-md shadow-md w-96"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 className="text-lg font-bold mb-4">{module.name} Details</h2>
+                        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vel ligula id nisi pharetra malesuada.</p>
+                        <button
+                            className="mt-4 px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 transition"
+                            onClick={() => setIsDialogOpen(false)}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+        </>
     );
 };

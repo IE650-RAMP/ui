@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import {Button} from '@/components/ui/button';
 import {Checkbox} from "@/components/ui/checkbox"
-import {Clock} from "lucide-react"; // Using Clock icon to indicate selected in different semester
 import {v4 as uuidv4} from 'uuid';
+import {Progress} from "@/components/ui/progress";
 import modulesData from '../../data/modules.json';
 import {ModuleCard} from './module-card';
 
@@ -25,7 +25,24 @@ type Module = {
     semesters: number[];
     ects: number;
     prerequisites: string[];
+    subjectArea: string;
 };
+
+type SubjectAreaRequirement = {
+    name: string;
+    minCredits: number;
+    maxCredits: number;
+};
+
+const subjectAreaRequirements: SubjectAreaRequirement[] = [
+    {name: "Fundamentals", minCredits: 27, maxCredits: 27},
+    {name: "Data Management", minCredits: 6, maxCredits: 24},
+    {name: "Data Analytics", minCredits: 12, maxCredits: 36},
+    {name: "Responsible Data Science", minCredits: 3, maxCredits: 7},
+    {name: "Data Science Applications", minCredits: 0, maxCredits: 12},
+    {name: "Projects and Seminars", minCredits: 14, maxCredits: 18},
+    {name: "Master's Thesis", minCredits: 30, maxCredits: 30}
+];
 
 export const ModulePlanner = () => {
     const [modules, setModules] = useState<Module[]>([]);
@@ -67,8 +84,27 @@ export const ModulePlanner = () => {
         }
     };
 
+    const calculateSubjectAreaProgress = () => {
+        const progress = new Map<string, number>();
+
+        // Initialize all subject areas with 0 credits
+        subjectAreaRequirements.forEach(area => {
+            progress.set(area.name, 0);
+        });
+
+        // Calculate total ECTS per subject area from selected modules
+        selectedModules.forEach(uuid => {
+            const module = modules.find(m => m.uuid === uuid);
+            if (module) {
+                const currentCredits = progress.get(module.subjectArea) || 0;
+                progress.set(module.subjectArea, currentCredits + module.ects);
+            }
+        });
+
+        return progress;
+    };
+
     const isModuleSelectedElsewhere = (module: Module): boolean => {
-        // Check if any module with the same code (not UUID) is selected, excluding this instance
         return modules.some(m =>
             selectedModules.includes(m.uuid) && // is selected
             m.code === module.code && // same module code
@@ -83,7 +119,6 @@ export const ModulePlanner = () => {
         const isSelected = selectedModules.includes(moduleUuid);
 
         if (isSelected) {
-            // Handle deselection
             const dependentModules = getDependentModules(moduleUuid);
             if (dependentModules.length > 0) {
                 setDialogModules(dependentModules);
@@ -93,10 +128,10 @@ export const ModulePlanner = () => {
                 deselectModule(moduleUuid);
             }
         } else {
-            // Find if any instance of this module (same ID) is already selected
+            // Find if any instance of this module (same code) is already selected
             const existingSelectedInstance = modules.find(m =>
                 selectedModules.includes(m.uuid) &&
-                m.id === clickedModule.id
+                m.code === clickedModule.code
             );
 
             if (existingSelectedInstance) {
@@ -162,22 +197,6 @@ export const ModulePlanner = () => {
     const isModuleSelected = (moduleUuid: string) =>
         selectedModules.includes(moduleUuid);
 
-    const isModuleSelectedInOtherSemester = (module: Module): number | null => {
-        // Find any module with the same code that is selected
-        const moduleWithSameCode = modules.find(m =>
-            selectedModules.includes(m.uuid) &&
-            m.code === module.code &&
-            m.uuid !== module.uuid
-        );
-
-        if (moduleWithSameCode) {
-            // Return the first semester where it's selected
-            return moduleWithSameCode.semesters[0];
-        }
-        return null;
-    };
-
-
     const selectedModuleCodes = useMemo(() => {
         return modules
             .filter(m => selectedModules.includes(m.uuid))
@@ -191,7 +210,6 @@ export const ModulePlanner = () => {
     const filteredModules = useMemo(() => {
         let filtered = modules;
 
-        // Apply search filter
         if (searchTerm.trim()) {
             filtered = filtered.filter(
                 module =>
@@ -200,7 +218,6 @@ export const ModulePlanner = () => {
             );
         }
 
-        // Apply visibility filter for unfulfilled prerequisites
         if (hideUnfulfilled) {
             filtered = filtered.filter(module => {
                 const prerequisitesMet = module.prerequisites.every(prereqCode =>
@@ -212,6 +229,65 @@ export const ModulePlanner = () => {
 
         return filtered;
     }, [modules, searchTerm, hideUnfulfilled, selectedModules, selectedModuleCodes]);
+
+    const renderProgressTracking = () => {
+    const progress = calculateSubjectAreaProgress();
+
+    return (
+        <Card className="mb-8">
+            <CardHeader>
+                <CardTitle>Study Progress by Subject Area</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-6">
+                    {subjectAreaRequirements.map((area) => {
+                        const currentCredits = progress.get(area.name) || 0;
+                        const progressPercentage = Math.min(
+                            100,
+                            (currentCredits / area.maxCredits) * 100
+                        );
+
+                        // Determine if the credits are out of bounds
+                        const isOutOfLimits =
+                            currentCredits < area.minCredits || currentCredits > area.maxCredits;
+                        const barColor = isOutOfLimits ? 'bg-red-300' : 'bg-black';
+
+                        return (
+                            <div key={area.name} className="grid grid-cols-[180px_1fr_120px] items-center gap-4">
+                                <span className="font-medium text-sm">
+                                    {area.name}
+                                </span>
+                                <div className="relative h-4 bg-gray-300 rounded overflow-hidden">
+                                    {/* Filled bar with animation */}
+                                    <div
+                                        className={`${barColor} h-full rounded transition-all duration-300`}
+                                        style={{ width: `${progressPercentage}%` }}
+                                    />
+
+                                    {/* Minimum credits indicator */}
+                                    <div
+                                        className="absolute h-4 w-0.5 bg-black top-0"
+                                        style={{
+                                            left: `${(area.minCredits / area.maxCredits) * 100}%`,
+                                            zIndex: 1
+                                        }}
+                                        title={`Minimum required: ${area.minCredits} ECTS`}
+                                    />
+                                </div>
+                                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                    {currentCredits}/{area.minCredits}
+                                    {area.maxCredits > area.minCredits && `-${area.maxCredits}`} ECTS
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+
 
     const renderSemesterColumns = () => {
         const semesters = [
@@ -247,10 +323,10 @@ export const ModulePlanner = () => {
         );
     };
 
-
     return (
         <div className="container mx-auto p-4 max-w-full">
             <h2 className="text-2xl font-bold mb-4">Module Planner</h2>
+            {renderProgressTracking()}
             <div className="mb-4 flex items-center gap-4">
                 <input
                     type="text"
