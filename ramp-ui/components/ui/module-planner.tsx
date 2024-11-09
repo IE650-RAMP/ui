@@ -13,7 +13,6 @@ import {
 import {Button} from '@/components/ui/button';
 import {Checkbox} from "@/components/ui/checkbox"
 import {v4 as uuidv4} from 'uuid';
-import {Progress} from "@/components/ui/progress";
 import modulesData from '../../data/modules.json';
 import {ModuleCard} from './module-card';
 import {
@@ -62,7 +61,6 @@ export const ModulePlanner = () => {
     const [dialogModules, setDialogModules] = useState<Module[]>([]);
     const [moduleToDeselect, setModuleToDeselect] = useState<Module | null>(null);
     const [hideUnfulfilled, setHideUnfulfilled] = useState(false);
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [availableSemesters, setAvailableSemesters] = useState<number[]>([]);
 
     useEffect(() => {

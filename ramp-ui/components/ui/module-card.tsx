@@ -27,7 +27,6 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                                                           module,
                                                           isSelected,
                                                           onSelect,
-                                                          selectedModuleCodes,
                                                           selectedElsewhere,
                                                           currentSemester,
                                                           allModules,
@@ -152,7 +151,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                                 className="p-1 rounded"
                                 style={{backgroundColor: getDarkerModuleColor(module)}}
                             >
-                                <Copy className="text-white" size={16} title="Already selected in another semester"/>
+                                <Copy className="text-white" size={16}
+                                      aria-label="Already selected in another semester"/>
                             </div>
                         )}
                         {module.prerequisites.length > 0 && (
@@ -172,15 +172,17 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                     <button
                         className="px-3 py-1 rounded transition"
                         style={{
-                            backgroundColor: greyedOut ? 'hsl(0, 0%, 50%)' : getDarkerModuleColor(module),
+                            backgroundColor: getDarkerModuleColor(module), // Use darker color regardless of greyedOut
                             color: 'white',
-                            cursor: greyedOut ? 'not-allowed' : 'pointer',
+                            cursor: 'pointer', // Always allow pointer cursor
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
                             setIsDialogOpen(true);
                         }}
-                        disabled={greyedOut}
+                        // Remove disabled prop to make it always clickable
+                        title="View module details"
+                        aria-label={`View details for ${module.name}`}
                     >
                         Details
                     </button>
