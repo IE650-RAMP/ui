@@ -361,15 +361,15 @@ export const ModulePlanner = () => {
     return (
         <div className="container mx-auto p-4 max-w-full">
             <h1 className="text-4xl font-bold mb-4">Module Planner</h1>
-            <div className="mb-4 flex items-center gap-4">
+            <div className="mb-4 flex flex-col-reverse sm:flex-row items-start sm:items-center gap-4">
                 <input
                     type="text"
                     value={searchTerm}
                     onChange={handleSearchChange}
                     placeholder="Search modules by name or code..."
-                    className="w-80 p-2 border border-gray-300 rounded-md"
+                    className="w-full sm:w-80 p-2 border border-gray-300 rounded-md"
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Checkbox
                         id="hideUnfulfilled"
                         checked={hideUnfulfilled}
@@ -380,6 +380,7 @@ export const ModulePlanner = () => {
                     </label>
                 </div>
             </div>
+
             {renderSemesterColumns()}
 
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
