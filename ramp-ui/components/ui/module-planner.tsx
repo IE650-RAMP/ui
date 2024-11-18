@@ -2,8 +2,8 @@
 
 'use client';
 
-import React, {useState, useEffect, useMemo} from 'react';
-import {Card, CardHeader, CardTitle, CardContent} from '@/components/ui/card';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -13,12 +13,12 @@ import {
     DialogDescription,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import {Button} from '@/components/ui/button';
-import {Checkbox} from "@/components/ui/checkbox";
-import {RadioGroup, RadioGroupItem} from "@/components/ui/radio-group";
-import {getModules, ModuleBinding} from '@/components/ui/sparql-fetcher';
-import {v4 as uuidv4} from 'uuid';
-import {ModuleCard} from './module-card';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { getModules, ModuleBinding } from '@/components/ui/sparql-fetcher';
+import { v4 as uuidv4 } from 'uuid';
+import { ModuleCard } from './module-card';
 import {
     Drawer,
     DrawerClose,
@@ -29,6 +29,7 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
+import { ProgressBar } from './progressbar';
 
 type Module = {
     uuid: string;
@@ -37,7 +38,8 @@ type Module = {
     name: string;
     semesters: number[];
     ects: number;
-    prerequisites: string[];
+    prerequisites: string[];       // URIs of prerequisites
+    prerequisiteNames: string[];   // Names of prerequisites
     subjectArea: string[];
     assessment?: string[];
     examDuration?: number[];
@@ -60,14 +62,23 @@ type SubjectAreaRequirement = {
 };
 
 const subjectAreaRequirements: SubjectAreaRequirement[] = [
-    {name: "Fundamentals", minCredits: 27, maxCredits: 27},
-    {name: "Data Management", minCredits: 6, maxCredits: 24},
-    {name: "Data Analytics", minCredits: 12, maxCredits: 36},
-    {name: "Responsible Data Science", minCredits: 3, maxCredits: 7},
-    {name: "Data Science Applications", minCredits: 0, maxCredits: 12},
-    {name: "Projects and Seminars", minCredits: 14, maxCredits: 18},
-    {name: "Master's Thesis", minCredits: 30, maxCredits: 30}
+    { name: "Fundamentals", minCredits: 27, maxCredits: 27 },
+    { name: "Data Management", minCredits: 6, maxCredits: 24 },
+    { name: "Data Analytics", minCredits: 12, maxCredits: 36 },
+    { name: "Responsible Data Science", minCredits: 3, maxCredits: 7 },
+    { name: "Data Science Applications", minCredits: 0, maxCredits: 12 },
+    { name: "Projects and Seminars", minCredits: 14, maxCredits: 18 },
+    { name: "Master's Thesis", minCredits: 30, maxCredits: 30 }
 ];
+
+/**
+ * Normalizes names to ensure consistency.
+ * @param name - The raw name.
+ * @returns The normalized name.
+ */
+function normalizeName(name: string): string {
+    return name.trim().toLowerCase().replace(/_/g, ' ');
+}
 
 export const ModulePlanner = () => {
     const [modules, setModules] = useState<Module[]>([]);
@@ -130,10 +141,16 @@ export const ModulePlanner = () => {
                 uuid: uuidv4(),
                 id: binding.ids.length > 0 ? parseInt(binding.ids[0], 10) : 0,
                 code: binding.module.split('/').pop() || '',
-                name: binding.names?.length ? binding.names.join(', ') : 'Unnamed Module',
+                name:
+                    binding.names && binding.names.length > 0
+                        ? binding.names.join(', ')
+                        : binding.labels && binding.labels.length > 0
+                            ? binding.labels.join(', ')
+                            : 'Unnamed Module',
                 semesters: binding.recSemesterLabels.length > 0 ? binding.recSemesterLabels : [],
                 ects: binding.ectsLabels.length > 0 ? binding.ectsLabels[0] : 0,
-                prerequisites: binding.prereqLabels || [],
+                prerequisites: binding.prereqUris || [],          // Use prerequisite URIs
+                prerequisiteNames: binding.prereqLabels || [],    // Names of prerequisites
                 subjectArea: binding.studyAreaLabels || [],
                 assessment: binding.assessmentLabels,
                 examDuration: binding.examDurationLabels,
@@ -153,7 +170,7 @@ export const ModulePlanner = () => {
             const processedModules: Module[] = modulesWithUUID.flatMap(module => {
                 if (module.semesters.length === 0) {
                     // Assign to all semesters
-                    return Array.from({length: numberOfSemesters}, (_, i) => ({
+                    return Array.from({ length: numberOfSemesters }, (_, i) => ({
                         ...module,
                         uuid: uuidv4(),
                         semesters: [i + 1], // Semesters start at 1
@@ -164,7 +181,7 @@ export const ModulePlanner = () => {
             });
 
             // Determine unique semesters based on user input
-            const allSemesters = Array.from({length: numberOfSemesters}, (_, i) => i + 1);
+            const allSemesters = Array.from({ length: numberOfSemesters }, (_, i) => i + 1);
 
             setAvailableSemesters(allSemesters);
             setModules(processedModules);
@@ -185,7 +202,8 @@ export const ModulePlanner = () => {
 
         // Initialize all subject areas with 0 credits
         subjectAreaRequirements.forEach(area => {
-            progress.set(area.name, 0);
+            const normalizedAreaName = normalizeName(area.name);
+            progress.set(normalizedAreaName, 0);
         });
 
         // Calculate total ECTS per subject area from selected modules
@@ -193,8 +211,13 @@ export const ModulePlanner = () => {
             const module = modules.find(m => m.uuid === uuid);
             if (module) {
                 module.subjectArea.forEach(area => {
-                    const currentCredits = progress.get(area) || 0;
-                    progress.set(area, currentCredits + module.ects);
+                    const normalizedArea = normalizeName(area);
+                    if (progress.has(normalizedArea)) {
+                        const currentCredits = progress.get(normalizedArea) || 0;
+                        progress.set(normalizedArea, currentCredits + module.ects);
+                    } else {
+                        console.warn(`Subject area "${normalizedArea}" not defined in requirements.`);
+                    }
                 });
             }
         });
@@ -222,8 +245,8 @@ export const ModulePlanner = () => {
      * @returns True if all prerequisites are fulfilled, false otherwise.
      */
     const arePrerequisitesFulfilled = (module: Module, currentSemester: number): boolean => {
-        return module.prerequisites.every(prereqCode => {
-            const extractedPrereqCode = prereqCode.split('/').pop() || prereqCode;
+        return module.prerequisites.every(prereqUri => {
+            const extractedPrereqCode = prereqUri.split('/').pop() || prereqUri;
             const selectedPrereq = modules.find(m =>
                 m.code === extractedPrereqCode &&
                 selectedModules.includes(m.uuid) &&
@@ -290,7 +313,10 @@ export const ModulePlanner = () => {
 
         const traverseDependencies = (module: Module) => {
             const directDependents = modules.filter(m =>
-                m.prerequisites.includes(module.code) && selectedModules.includes(m.uuid)
+                m.prerequisites.some(prereqUri => {
+                    const extractedPrereqCode = prereqUri.split('/').pop() || prereqUri;
+                    return extractedPrereqCode === module.code;
+                }) && selectedModules.includes(m.uuid)
             );
 
             dependentModules.push(...directDependents);
@@ -440,7 +466,8 @@ export const ModulePlanner = () => {
                 </DrawerHeader>
                 <div className="space-y-6 p-4">
                     {subjectAreaRequirements.map(area => {
-                        const currentCredits = progress.get(area.name) || 0;
+                        const normalizedAreaName = normalizeName(area.name);
+                        const currentCredits = progress.get(normalizedAreaName) || 0;
                         const progressPercentage = area.maxCredits > 0
                             ? Math.min(
                                 100,
@@ -450,31 +477,19 @@ export const ModulePlanner = () => {
 
                         const isOutOfLimits =
                             currentCredits < area.minCredits || currentCredits > area.maxCredits;
-                        const barColor = isOutOfLimits ? 'bg-red-300' : 'bg-black';
 
                         return (
-                            <div key={area.name} className="grid grid-cols-[150px_1fr_100px] items-center gap-4">
-                                <span className="text-xs font-medium">{area.name}</span>
-                                <div className="relative h-3 bg-gray-300 rounded overflow-hidden">
-                                    <div
-                                        className={`${barColor} h-full rounded transition-all duration-300`}
-                                        style={{width: `${progressPercentage}%`}}
-                                    />
-                                    {area.minCredits > 0 && (
-                                        <div
-                                            className="absolute h-3 w-0.5 bg-black top-0"
-                                            style={{
-                                                left: `${(area.minCredits / area.maxCredits) * 100}%`,
-                                                zIndex: 1,
-                                            }}
-                                            title={`Minimum required: ${area.minCredits} ECTS`}
-                                        />
-                                    )}
+                            <div key={area.name} className="flex items-center space-x-4">
+                                <div className="w-32">
+                                    <span className="text-sm font-medium">{area.name}</span>
                                 </div>
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                    {currentCredits}/{area.minCredits}
-                                    {area.maxCredits > area.minCredits && `-${area.maxCredits}`} ECTS
-                                </span>
+                                <ProgressBar
+                                    percentage={progressPercentage}
+                                    isOutOfLimits={isOutOfLimits}
+                                    minCredits={area.minCredits}
+                                    maxCredits={area.maxCredits}
+                                    currentCredits={currentCredits}
+                                />
                             </div>
                         );
                     })}
@@ -533,7 +548,7 @@ export const ModulePlanner = () => {
             );
         } else {
             // Grid layouts (2 × X to 6 × X)
-            const columns = parseInt(layout.split('*')[0], 10) || 1;
+            const columns = parseInt(layout.split('x')[0], 10) || 1;
             const gridStyle = {
                 display: 'grid',
                 gridTemplateColumns: `repeat(${columns}, minmax(200px, 1fr))`,
@@ -643,37 +658,37 @@ export const ModulePlanner = () => {
                                 <RadioGroup value={layout} onValueChange={handleLayoutChange}
                                             className="mt-2 space-y-2">
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="landscape" id="layout-landscape"/>
+                                        <RadioGroupItem value="landscape" id="layout-landscape" />
                                         <label htmlFor="layout-landscape" className="ml-2">
                                             Landscape (1 × X)
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="2x" id="layout-2x"/>
+                                        <RadioGroupItem value="2x" id="layout-2x" />
                                         <label htmlFor="layout-2x" className="ml-2">
                                             2 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="3x" id="layout-3x"/>
+                                        <RadioGroupItem value="3x" id="layout-3x" />
                                         <label htmlFor="layout-3x" className="ml-2">
                                             3 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="4x" id="layout-4x"/>
+                                        <RadioGroupItem value="4x" id="layout-4x" />
                                         <label htmlFor="layout-4x" className="ml-2">
                                             4 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="5x" id="layout-5x"/>
+                                        <RadioGroupItem value="5x" id="layout-5x" />
                                         <label htmlFor="layout-5x" className="ml-2">
                                             5 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="6x" id="layout-6x"/>
+                                        <RadioGroupItem value="6x" id="layout-6x" />
                                         <label htmlFor="layout-6x" className="ml-2">
                                             6 × X
                                         </label>
@@ -746,19 +761,3 @@ export const ModulePlanner = () => {
         </div>
     );
 };
-
-/**
- * Formats a module name by replacing underscores with spaces and capitalizing each word's first letter.
- * @param name - The raw module name string.
- * @returns The formatted module name.
- */
-function formatModuleName(name: string): string {
-    return name
-        .replace(/_/g, ' ') // Replace underscores with spaces
-        .split(' ') // Split into words
-        .map((word) => {
-            if (word.length === 0) return word; // Handle empty strings
-            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(); // Capitalize first letter
-        })
-        .join(' '); // Rejoin into a single string
-}

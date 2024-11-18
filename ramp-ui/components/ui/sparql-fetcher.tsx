@@ -7,8 +7,10 @@ export type ModuleBinding = {
     module: string;
     ids: string[];
     names: string[];
+    labels: string[];
     studyAreaLabels: string[];
     studyProgramLabels: string[];
+    prereqUris: string[];           // Added prerequisite URIs
     prereqLabels: string[];
     additionalPrereqLabels?: string[];
     ectsLabels: number[];
@@ -24,7 +26,6 @@ export type ModuleBinding = {
     furtherModuleLabels?: string[];
     hasPrereqLabels?: string[];
     hasModuleLabels?: string[];
-    labels?: string[];
     examDistLabels?: string[];
     assessmentFormLabels?: string[];
 };
@@ -69,12 +70,12 @@ function formatModuleName(name: string): string {
 }
 
 /**
- * Normalizes subject area names to ensure consistency.
- * @param name - The raw subject area name.
- * @returns The normalized subject area name.
+ * Normalizes names to ensure consistency.
+ * @param name - The raw name.
+ * @returns The normalized name.
  */
-function normalizeSubjectAreaName(name: string): string {
-    return name.replace(/_/g, ' ').trim();
+function normalizeName(name: string): string {
+    return name.trim().toLowerCase().replace(/_/g, ' ');
 }
 
 /**
@@ -97,8 +98,10 @@ export async function getModules(): Promise<ModuleBinding[]> {
         SELECT DISTINCT ?module
             (GROUP_CONCAT(DISTINCT ?idLabel; separator="|") as ?ids)
             (GROUP_CONCAT(DISTINCT ?nameLabel; separator="|") as ?names)
+            (GROUP_CONCAT(DISTINCT ?label; separator="|") as ?labels)
             (GROUP_CONCAT(DISTINCT ?studyAreaLabel; separator="|") as ?studyAreaLabels)
             (GROUP_CONCAT(DISTINCT ?studyProgramLabel; separator="|") as ?studyProgramLabels)
+            (GROUP_CONCAT(DISTINCT STR(?prereq); separator="|") as ?prereqUris)
             (GROUP_CONCAT(DISTINCT ?prereqLabel; separator="|") as ?prereqLabels)
             (GROUP_CONCAT(DISTINCT ?additionalPrereqLabel; separator="|") as ?additionalPrereqLabels)
             (GROUP_CONCAT(DISTINCT ?ectsLabel; separator="|") as ?ectsLabels)
@@ -114,7 +117,6 @@ export async function getModules(): Promise<ModuleBinding[]> {
             (GROUP_CONCAT(DISTINCT ?furtherModuleLabel; separator="|") as ?furtherModuleLabels)
             (GROUP_CONCAT(DISTINCT ?hasPrereqLabel; separator="|") as ?hasPrereqLabels)
             (GROUP_CONCAT(DISTINCT ?hasModuleLabel; separator="|") as ?hasModuleLabels)
-            (GROUP_CONCAT(DISTINCT ?label; separator="|") as ?labels)
             (GROUP_CONCAT(DISTINCT ?examDistLabel; separator="|") as ?examDistLabels)
             (GROUP_CONCAT(DISTINCT ?assessmentFormLabel; separator="|") as ?assessmentFormLabels)
         WHERE {
@@ -122,6 +124,7 @@ export async function getModules(): Promise<ModuleBinding[]> {
             FILTER (STRSTARTS(STR(?module), "http://ramp.uni-mannheim.de/module/"))
             OPTIONAL { ?module ramp:id ?id . ?id rdfs:label ?idLabel }
             OPTIONAL { ?module ramp:name ?nameLabel }  # Adjusted here
+            OPTIONAL { ?module rdfs:label ?label }     # Include rdfs:label
             OPTIONAL { 
                 ?module ramp:isModuleOf ?studyArea .
                 ?studyArea rdf:type ramp:StudyArea .
@@ -144,10 +147,9 @@ export async function getModules(): Promise<ModuleBinding[]> {
             OPTIONAL { ?module ramp:recommendedSemester ?recSemester . ?recSemester rdfs:label ?recSemesterLabel }
             OPTIONAL { ?module ramp:workloadInPerson ?workloadInPerson . ?workloadInPerson rdfs:label ?workloadInPersonLabel }
             OPTIONAL { ?module ramp:workloadSelfStudy ?workloadSelfStudy . ?workloadSelfStudy rdfs:label ?workloadSelfStudyLabel }
-            OPTIONAL { ?module ramp:hasFurtherModule ?furtherModule . ?furtherModule rdfs:label ?furtherModuleLabel } # Corrected property name
+            OPTIONAL { ?module ramp:hasFurtherModule ?furtherModule . ?furtherModule rdfs:label ?furtherModuleLabel }
             OPTIONAL { ?module ramp:hasPrerequisite ?hasPrereq . ?hasPrereq rdfs:label ?hasPrereqLabel }
             OPTIONAL { ?module ramp:hasModule ?hasModule . ?hasModule rdfs:label ?hasModuleLabel }
-            OPTIONAL { ?module rdfs:label ?label }
             OPTIONAL { ?module ramp:examinationDistribution ?examDist . ?examDist rdfs:label ?examDistLabel }
             OPTIONAL { ?module ramp:hasAssessmentForm ?assessmentForm . ?assessmentForm rdfs:label ?assessmentFormLabel }
         }
@@ -179,9 +181,11 @@ export async function getModules(): Promise<ModuleBinding[]> {
                 module: binding.module.value,
                 ids: splitValues(binding.ids),
                 names: splitValues(binding.names).map(formatModuleName),
-                studyAreaLabels: splitValues(binding.studyAreaLabels).map(normalizeSubjectAreaName),
-                studyProgramLabels: splitValues(binding.studyProgramLabels).map(normalizeSubjectAreaName),
-                prereqLabels: splitValues(binding.prereqLabels),
+                labels: splitValues(binding.labels).map(formatModuleName),
+                studyAreaLabels: splitValues(binding.studyAreaLabels).map(formatModuleName),
+                studyProgramLabels: splitValues(binding.studyProgramLabels).map(formatModuleName),
+                prereqUris: splitValues(binding.prereqUris),
+                prereqLabels: splitValues(binding.prereqLabels).map(formatModuleName),
                 additionalPrereqLabels: splitValues(binding.additionalPrereqLabels),
                 ectsLabels: parseNumberList(binding.ectsLabels),
                 examDurationLabels: parseNumberList(binding.examDurationLabels),
@@ -196,7 +200,6 @@ export async function getModules(): Promise<ModuleBinding[]> {
                 furtherModuleLabels: splitValues(binding.furtherModuleLabels),
                 hasPrereqLabels: splitValues(binding.hasPrereqLabels),
                 hasModuleLabels: splitValues(binding.hasModuleLabels),
-                labels: splitValues(binding.labels),
                 examDistLabels: splitValues(binding.examDistLabels),
                 assessmentFormLabels: splitValues(binding.assessmentFormLabels),
             };

@@ -13,7 +13,8 @@ type Module = {
     name: string;
     semesters: number[];
     ects: number;
-    prerequisites: string[];
+    prerequisites: string[];        // URIs of prerequisites
+    prerequisiteNames: string[];    // Names of prerequisites
     subjectArea: string[];
     assessment?: string[];
     examDuration?: number[];
@@ -69,8 +70,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
     const isModuleGreyedOut = (module: Module) => {
         if (isSelected) return false;
 
-        const prerequisitesMet = module.prerequisites.every(prereqCode => {
-            const extractedPrereqCode = extractModuleCode(prereqCode);
+        const prerequisitesMet = module.prerequisites.every(prereqUri => {
+            const extractedPrereqCode = extractModuleCode(prereqUri);
             const selectedPrereq = allModules.find(m =>
                 m.code === extractedPrereqCode &&
                 selectedModules.includes(m.uuid) &&
@@ -88,8 +89,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
      * @returns True if prerequisites are met, false otherwise.
      */
     const arePrerequisitesMet = (module: Module): boolean => {
-        return module.prerequisites.every(prereqCode => {
-            const extractedPrereqCode = extractModuleCode(prereqCode);
+        return module.prerequisites.every(prereqUri => {
+            const extractedPrereqCode = extractModuleCode(prereqUri);
             const selectedPrereq = allModules.find(m =>
                 m.code === extractedPrereqCode &&
                 selectedModules.includes(m.uuid) &&
@@ -106,9 +107,12 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
      */
     const getPrerequisiteNames = (module: Module): string => {
         return module.prerequisites
-            .map(prereqCode => {
-                const prereqModule = allModules.find(m => m.code === extractModuleCode(prereqCode));
-                return prereqModule ? `${prereqModule.name} (${prereqModule.code})` : `Module ${extractModuleCode(prereqCode)}`;
+            .map(prereqUri => {
+                const extractedPrereqCode = extractModuleCode(prereqUri);
+                const prereqModule = allModules.find(m => m.code === extractedPrereqCode);
+                return prereqModule
+                    ? `${prereqModule.name} (${prereqModule.code})`
+                    : `Module ${extractedPrereqCode}`;
             })
             .join(', ');
     };
@@ -179,8 +183,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                 }}
                 style={{ backgroundColor: getModuleColor(module) }}
                 className={`p-4 rounded-md text-white ${
-                    greyedOut ? 'cursor-not-allowed' : 'cursor-pointer'
-                } hover:opacity-90 transition-opacity duration-200 ${
+                    greyedOut ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:opacity-90'
+                } transition-opacity duration-200 ${
                     isSelected ? 'border-2 border-black' : ''
                 } relative ${styles.moduleCard}`}
                 role="button"
