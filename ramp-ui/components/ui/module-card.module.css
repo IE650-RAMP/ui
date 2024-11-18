@@ -1,0 +1,10 @@
+/* ModuleCard.module.css */
+
+.moduleCard {
+    /* Removed fixed width and height */
+    min-width: 150px; /* Ensures a minimum size for readability */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    /* Optional: Add padding or margin if needed */
+}

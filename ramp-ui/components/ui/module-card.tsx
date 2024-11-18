@@ -1,6 +1,10 @@
-import React, {useState} from 'react';
-import {FaLock, FaUnlock} from 'react-icons/fa';
-import {Copy} from "lucide-react"; // Icon for indicating selection in other semesters
+// module-card.tsx
+
+import React, { useState } from 'react';
+import { FaLock, FaUnlock } from 'react-icons/fa';
+import { Copy } from 'lucide-react';
+import { getHueFromModuleCode } from '@/components/ui/colorUtils';
+import styles from './module-card.module.css';
 
 type Module = {
     uuid: string;
@@ -10,6 +14,19 @@ type Module = {
     semesters: number[];
     ects: number;
     prerequisites: string[];
+    subjectArea: string[];
+    assessment?: string[];
+    examDuration?: number[];
+    lecturer?: string[];
+    personInCharge?: string[];
+    offeredIn?: string[];
+    literature?: string[];
+    workloadPerson?: number[];
+    workloadSelf?: number[];
+    furtherModule?: string[];
+    examDistribution?: string[];
+    assessmentForm?: string[];
+    additionalPrereqList?: string[];
 };
 
 type ModuleCardProps = {
@@ -24,23 +41,38 @@ type ModuleCardProps = {
 };
 
 export const ModuleCard: React.FC<ModuleCardProps> = ({
-                                                          module,
-                                                          isSelected,
-                                                          onSelect,
-                                                          selectedElsewhere,
-                                                          currentSemester,
-                                                          allModules,
-                                                          selectedModules,
-                                                      }) => {
+    module,
+    isSelected,
+    onSelect,
+    selectedModuleCodes,
+    selectedElsewhere,
+    currentSemester,
+    allModules,
+    selectedModules,
+}) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+    /**
+     * Extracts the module code from its URI.
+     * @param uri - The module URI.
+     * @returns The module code.
+     */
+    const extractModuleCode = (uri: string): string => {
+        return uri.split('/').pop() || uri;
+    };
+
+    /**
+     * Determines if the module should be greyed out based on prerequisites and selection elsewhere.
+     * @param module - The module to check.
+     * @returns True if the module is greyed out, false otherwise.
+     */
     const isModuleGreyedOut = (module: Module) => {
         if (isSelected) return false;
 
-        // Check if prerequisites are met in earlier semesters
         const prerequisitesMet = module.prerequisites.every(prereqCode => {
+            const extractedPrereqCode = extractModuleCode(prereqCode);
             const selectedPrereq = allModules.find(m =>
-                m.code === prereqCode &&
+                m.code === extractedPrereqCode &&
                 selectedModules.includes(m.uuid) &&
                 Math.min(...m.semesters) < currentSemester
             );
@@ -50,10 +82,16 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
         return !prerequisitesMet || selectedElsewhere;
     };
 
+    /**
+     * Checks if all prerequisites for the module are met.
+     * @param module - The module to check.
+     * @returns True if prerequisites are met, false otherwise.
+     */
     const arePrerequisitesMet = (module: Module): boolean => {
         return module.prerequisites.every(prereqCode => {
+            const extractedPrereqCode = extractModuleCode(prereqCode);
             const selectedPrereq = allModules.find(m =>
-                m.code === prereqCode &&
+                m.code === extractedPrereqCode &&
                 selectedModules.includes(m.uuid) &&
                 Math.min(...m.semesters) < currentSemester
             );
@@ -61,43 +99,75 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
         });
     };
 
+    /**
+     * Retrieves the names of the prerequisites for display.
+     * @param module - The module whose prerequisites are to be retrieved.
+     * @returns A string listing all prerequisite module names and codes.
+     */
     const getPrerequisiteNames = (module: Module): string => {
         return module.prerequisites
-            .map(prereqCode => `Module ${prereqCode}`)
+            .map(prereqCode => {
+                const prereqModule = allModules.find(m => m.code === extractModuleCode(prereqCode));
+                return prereqModule ? `${prereqModule.name} (${prereqModule.code})` : `Module ${extractModuleCode(prereqCode)}`;
+            })
             .join(', ');
     };
 
+    /**
+     * Determines the background color of the module card based on selection and prerequisites.
+     * @param module - The module to determine color for.
+     * @returns The HSL color string.
+     */
     const getModuleColor = (module: Module) => {
         if (isSelected) {
-            const hue = (module.id * 137.508) % 360;
+            const hue = getHueFromModuleCode(module.code);
             const saturation = 70;
-            const lightness = 0;
-            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            const lightness = 50;
+            const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            return color;
         } else if (selectedElsewhere) {
-            return `hsl(0, 0%, 70%)`; // Grey for already selected modules
+            return `hsl(0, 0%, 70%)`;
         } else if (isModuleGreyedOut(module)) {
-            return `hsl(0, 0%, 70%)`; // Grey for modules with unmet prerequisites
+            return `hsl(0, 0%, 70%)`;
         } else {
-            const hue = (module.id * 137.508) % 360;
+            const hue = getHueFromModuleCode(module.code);
             const saturation = 70;
             const lightness = 69;
-            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            return color;
         }
     };
 
-
+    /**
+     * Determines a darker shade of the module's color for icons and buttons.
+     * @param module - The module to determine color for.
+     * @returns The darker HSL color string.
+     */
     const getDarkerModuleColor = (module: Module) => {
         if (isModuleGreyedOut(module)) {
-            return `hsl(0, 0%, 50%)`; // Darker grey for greyed-out modules
+            return `hsl(0, 0%, 50%)`;
         }
-        const hue = (module.id * 137.508) % 360;
+        const hue = getHueFromModuleCode(module.code);
         const saturation = 70;
-        const lightness = isSelected ? 20 : 40; // Darker shade
-        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        const lightness = isSelected ? 30 : 40;
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        return color;
     };
 
     const greyedOut = isModuleGreyedOut(module);
     const prerequisitesMet = arePrerequisitesMet(module);
+
+    // Define a color mapping for subject areas
+    const subjectAreaColorMap: { [key: string]: string } = {
+        "Fundamentals": "bg-blue-500",
+        "Data Management": "bg-green-500",
+        "Data Analytics": "bg-yellow-500",
+        "Responsible Data Science": "bg-purple-500",
+        "Data Science Applications": "bg-indigo-500",
+        "Projects and Seminars": "bg-pink-500",
+        "Master's Thesis": "bg-red-500",
+        // Add more mappings as needed
+    };
 
     return (
         <>
@@ -107,12 +177,12 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         onSelect(module.uuid);
                     }
                 }}
-                style={{backgroundColor: getModuleColor(module)}}
+                style={{ backgroundColor: getModuleColor(module) }}
                 className={`p-4 rounded-md text-white ${
                     greyedOut ? 'cursor-not-allowed' : 'cursor-pointer'
                 } hover:opacity-90 transition-opacity duration-200 ${
-                    isSelected ? 'border-black' : ''
-                } relative`}
+                    isSelected ? 'border-2 border-black' : ''
+                } relative ${styles.moduleCard}`}
                 role="button"
                 aria-pressed={isSelected}
                 aria-disabled={greyedOut}
@@ -133,54 +203,82 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                     }
                 }}
             >
-                {/* Rest of the JSX remains the same... */}
+                {/* Module Details */}
                 <h3 className="font-semibold">
                     {module.name} ({module.code})
                 </h3>
                 <p className="text-sm">ECTS: {module.ects}</p>
+
+                {/* Subject Areas as Badges */}
+                {module.subjectArea && module.subjectArea.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                        {module.subjectArea.map((area, idx) => {
+                            const badgeColor = subjectAreaColorMap[area] || "bg-gray-800";
+
+                            return (
+                                <span
+                                    key={idx}
+                                    className={`text-xs px-2 py-0.5 ${badgeColor} text-white rounded-full`}
+                                    title={area}
+                                    aria-label={`Subject Area: ${area}`}
+                                >
+                                    {area}
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {module.prerequisites.length > 0 && (
-                    <p className="text-xs">
+                    <p className="text-xs mt-2">
                         Prerequisites: {getPrerequisiteNames(module)}
                     </p>
                 )}
 
+                {module.additionalPrereqList && module.additionalPrereqList.length > 0 && (
+                    <p className="text-xs mt-2">
+                        <strong>Additional Prerequisites:</strong> {module.additionalPrereqList.join(', ')}
+                    </p>
+                )}
+
+                {/* Icons */}
                 <div className="flex justify-between items-center mt-4">
                     <div className="flex space-x-2">
                         {selectedElsewhere && (
                             <div
                                 className="p-1 rounded"
-                                style={{backgroundColor: getDarkerModuleColor(module)}}
+                                style={{ backgroundColor: getDarkerModuleColor(module) }}
                             >
                                 <Copy className="text-white" size={16}
-                                      aria-label="Already selected in another semester"/>
+                                    aria-label="Already selected in another semester" />
                             </div>
                         )}
                         {module.prerequisites.length > 0 && (
                             <div
                                 className="p-1 rounded"
-                                style={{backgroundColor: getDarkerModuleColor(module)}}
+                                style={{ backgroundColor: getDarkerModuleColor(module) }}
                             >
                                 {prerequisitesMet ? (
-                                    <FaUnlock className="text-white" title="Prerequisites met"/>
+                                    <FaUnlock className="text-white" title="Prerequisites met" />
                                 ) : (
-                                    <FaLock className="text-white" title="Prerequisites not met"/>
+                                    <FaLock className="text-white" title="Prerequisites not met" />
                                 )}
                             </div>
                         )}
                     </div>
 
+                    {/* Details Button */}
                     <button
                         className="px-3 py-1 rounded transition"
                         style={{
-                            backgroundColor: getDarkerModuleColor(module), // Use darker color regardless of greyedOut
+                            backgroundColor: getDarkerModuleColor(module),
                             color: 'white',
-                            cursor: 'pointer', // Always allow pointer cursor
+                            cursor: 'pointer',
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
                             setIsDialogOpen(true);
                         }}
-                        // Remove disabled prop to make it always clickable
                         title="View module details"
                         aria-label={`View details for ${module.name}`}
                     >
@@ -189,19 +287,66 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                 </div>
             </div>
 
-            {/* Dialog */}
+            {/* Dialog for Module Details */}
             {isDialogOpen && (
                 <div
                     className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
                     onClick={() => setIsDialogOpen(false)}
                 >
                     <div
-                        className="bg-white p-6 rounded-md shadow-md w-96"
+                        className="bg-white p-6 rounded-md shadow-md w-96 max-h-full overflow-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 className="text-lg font-bold mb-4">{module.name} Details</h2>
-                        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vel ligula id nisi pharetra
-                            malesuada.</p>
+                        <div className="space-y-2">
+                            <p><strong>Code:</strong> {module.code}</p>
+                            <p><strong>ECTS:</strong> {module.ects}</p>
+                            {module.subjectArea && module.subjectArea.length > 0 && (
+                                <p><strong>Subject Areas:</strong> {module.subjectArea.join(', ')}</p>
+                            )}
+                            {module.prerequisites.length > 0 && (
+                                <p><strong>Prerequisites:</strong> {getPrerequisiteNames(module)}</p>
+                            )}
+                            {module.additionalPrereqList && module.additionalPrereqList.length > 0 && (
+                                <p><strong>Additional Prerequisites:</strong> {module.additionalPrereqList.join(', ')}
+                                </p>
+                            )}
+                            {module.assessment && module.assessment.length > 0 && (
+                                <p><strong>Assessment:</strong> {module.assessment.join(', ')}</p>
+                            )}
+                            {module.examDuration && module.examDuration.length > 0 && (
+                                <p><strong>Exam Duration:</strong> {module.examDuration.join(', ')} minutes</p>
+                            )}
+                            {module.lecturer && module.lecturer.length > 0 && (
+                                <p><strong>Lecturer(s):</strong> {module.lecturer.join(', ')}</p>
+                            )}
+                            {module.personInCharge && module.personInCharge.length > 0 && (
+                                <p><strong>Person in Charge:</strong> {module.personInCharge.join(', ')}</p>
+                            )}
+                            {module.offeredIn && module.offeredIn.length > 0 && (
+                                <p><strong>Offered In:</strong> {module.offeredIn.join(', ')}</p>
+                            )}
+                            {module.literature && module.literature.length > 0 && (
+                                <p><strong>Recommended Literature:</strong> {module.literature.join(', ')}</p>
+                            )}
+                            {module.workloadPerson && module.workloadPerson.length > 0 && (
+                                <p><strong>Workload (Person):</strong> {module.workloadPerson.join(', ')} hours</p>
+                            )}
+                            {module.workloadSelf && module.workloadSelf.length > 0 && (
+                                <p><strong>Workload (Self-Study):</strong> {module.workloadSelf.join(', ')} hours</p>
+                            )}
+                            {module.furtherModule && module.furtherModule.length > 0 && (
+                                <p><strong>Further Modules:</strong> {module.furtherModule.join(', ')}</p>
+                            )}
+                            {module.examDistribution && module.examDistribution.length > 0 && (
+                                <p><strong>Exam Distribution:</strong> {module.examDistribution.join(', ')}</p>
+                            )}
+                            {module.assessmentForm && module.assessmentForm.length > 0 && (
+                                <p><strong>Assessment Form:</strong> {module.assessmentForm.join(', ')}</p>
+                            )}
+                            {/* Add more fields as necessary */}
+                        </div>
+
                         <button
                             className="mt-4 px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 transition"
                             onClick={() => setIsDialogOpen(false)}

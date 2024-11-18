@@ -1,3 +1,5 @@
+// ModulePlanner.tsx
+
 'use client';
 
 import React, {useState, useEffect, useMemo} from 'react';
@@ -9,11 +11,13 @@ import {
     DialogFooter,
     DialogTitle,
     DialogDescription,
+    DialogTrigger,
 } from '@/components/ui/dialog';
 import {Button} from '@/components/ui/button';
-import {Checkbox} from "@/components/ui/checkbox"
+import {Checkbox} from "@/components/ui/checkbox";
+import {RadioGroup, RadioGroupItem} from "@/components/ui/radio-group";
+import {getModules, ModuleBinding} from '@/components/ui/sparql-fetcher';
 import {v4 as uuidv4} from 'uuid';
-import modulesData from '../../data/modules.json';
 import {ModuleCard} from './module-card';
 import {
     Drawer,
@@ -34,7 +38,19 @@ type Module = {
     semesters: number[];
     ects: number;
     prerequisites: string[];
-    subjectArea: string;
+    subjectArea: string[];
+    assessment?: string[];
+    examDuration?: number[];
+    lecturer?: string[];
+    personInCharge?: string[];
+    offeredIn?: string[];
+    literature?: string[];
+    workloadPerson?: number[];
+    workloadSelf?: number[];
+    furtherModule?: string[];
+    examDistribution?: string[];
+    assessmentForm?: string[];
+    additionalPrereqList?: string[];
 };
 
 type SubjectAreaRequirement = {
@@ -62,10 +78,20 @@ export const ModulePlanner = () => {
     const [moduleToDeselect, setModuleToDeselect] = useState<Module | null>(null);
     const [hideUnfulfilled, setHideUnfulfilled] = useState(false);
     const [availableSemesters, setAvailableSemesters] = useState<number[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [numberOfSemesters, setNumberOfSemesters] = useState<number>(6); // Default to 6 semesters
+    const [firstSemesterType, setFirstSemesterType] = useState<'FSS' | 'HWS'>('FSS');
+
+    // State for layout
+    const [layout, setLayout] = useState<string>('landscape'); // Default to 'landscape'
+
+    // State for the View Dialog
+    const [isViewDialogOpen, setIsViewDialogOpen] = useState<boolean>(false);
 
     useEffect(() => {
         fetchModuleData();
-    }, []);
+    }, [numberOfSemesters, firstSemesterType]); // Added firstSemesterType to dependencies
 
     useEffect(() => {
         const storedSelectedModules = localStorage.getItem('selectedModules');
@@ -78,26 +104,82 @@ export const ModulePlanner = () => {
         localStorage.setItem('selectedModules', JSON.stringify(selectedModules));
     }, [selectedModules]);
 
-    const fetchModuleData = async () => {
-        try {
-            const modulesWithUUID: Module[] = modulesData.flatMap(module =>
-                module.semesters.map(semester => ({
-                    ...module,
-                    uuid: uuidv4(),
-                    semesters: [semester],
-                }))
-            );
+    /**
+     * Determines the semester type (FSS/HWS) based on the first semester type and semester number.
+     * @param semesterNumber - The semester number.
+     * @returns 'FSS' for Winter Semester or 'HWS' for Summer Semester.
+     */
+    const getSemesterType = (semesterNumber: number): 'FSS' | 'HWS' => {
+        const types: ('FSS' | 'HWS')[] = ['FSS', 'HWS'];
+        const startIndex = firstSemesterType === 'FSS' ? 0 : 1;
+        return types[(startIndex + semesterNumber - 1) % 2];
+    };
 
-            // Get all unique semesters from the data and sort them
-            const allSemesters = [...new Set(modulesData.flatMap(m => m.semesters))].sort((a, b) => a - b);
+    /**
+     * Fetches module data and maps it to the Module type.
+     */
+    const fetchModuleData = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const bindings: ModuleBinding[] = await getModules();
+
+            // Transform SPARQL results into Module type
+            const modulesWithUUID: Module[] = bindings.map(binding => ({
+                uuid: uuidv4(),
+                id: binding.ids.length > 0 ? parseInt(binding.ids[0], 10) : 0,
+                code: binding.module.split('/').pop() || '',
+                name: binding.names?.length ? binding.names.join(', ') : 'Unnamed Module',
+                semesters: binding.recSemesterLabels.length > 0 ? binding.recSemesterLabels : [],
+                ects: binding.ectsLabels.length > 0 ? binding.ectsLabels[0] : 0,
+                prerequisites: binding.prereqLabels || [],
+                subjectArea: binding.studyAreaLabels || [],
+                assessment: binding.assessmentLabels,
+                examDuration: binding.examDurationLabels,
+                lecturer: binding.lecturerLabels,
+                personInCharge: binding.personInChargeLabels,
+                offeredIn: binding.offeredInLabels,
+                literature: binding.recLiteratureLabels,
+                workloadPerson: binding.workloadInPersonLabels,
+                workloadSelf: binding.workloadSelfStudyLabels,
+                furtherModule: binding.furtherModuleLabels,
+                examDistribution: binding.examDistLabels,
+                assessmentForm: binding.assessmentFormLabels,
+                additionalPrereqList: binding.additionalPrereqLabels
+            }));
+
+            // Assign modules without specified semesters to all semesters up to numberOfSemesters
+            const processedModules: Module[] = modulesWithUUID.flatMap(module => {
+                if (module.semesters.length === 0) {
+                    // Assign to all semesters
+                    return Array.from({length: numberOfSemesters}, (_, i) => ({
+                        ...module,
+                        uuid: uuidv4(),
+                        semesters: [i + 1], // Semesters start at 1
+                    }));
+                } else {
+                    return module;
+                }
+            });
+
+            // Determine unique semesters based on user input
+            const allSemesters = Array.from({length: numberOfSemesters}, (_, i) => i + 1);
 
             setAvailableSemesters(allSemesters);
-            setModules(modulesWithUUID);
+            setModules(processedModules);
         } catch (error) {
             console.error('Error fetching module data:', error);
+            setError('Failed to load modules. Please try again later.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
+    /**
+     * Calculates progress for each subject area based on selected modules.
+     * @returns A map with subject area names as keys and accumulated ECTS as values.
+     */
     const calculateSubjectAreaProgress = () => {
         const progress = new Map<string, number>();
 
@@ -110,14 +192,21 @@ export const ModulePlanner = () => {
         selectedModules.forEach(uuid => {
             const module = modules.find(m => m.uuid === uuid);
             if (module) {
-                const currentCredits = progress.get(module.subjectArea) || 0;
-                progress.set(module.subjectArea, currentCredits + module.ects);
+                module.subjectArea.forEach(area => {
+                    const currentCredits = progress.get(area) || 0;
+                    progress.set(area, currentCredits + module.ects);
+                });
             }
         });
 
         return progress;
     };
 
+    /**
+     * Checks if a module is selected in another semester.
+     * @param module - The module to check.
+     * @returns True if the module is selected elsewhere, false otherwise.
+     */
     const isModuleSelectedElsewhere = (module: Module): boolean => {
         return modules.some(m =>
             selectedModules.includes(m.uuid) && // is selected
@@ -126,11 +215,17 @@ export const ModulePlanner = () => {
         );
     };
 
+    /**
+     * Checks if all prerequisites for a module are fulfilled.
+     * @param module - The module to check.
+     * @param currentSemester - The semester in which the module is being taken.
+     * @returns True if all prerequisites are fulfilled, false otherwise.
+     */
     const arePrerequisitesFulfilled = (module: Module, currentSemester: number): boolean => {
         return module.prerequisites.every(prereqCode => {
-            // Find any selected module that matches the prerequisite code
+            const extractedPrereqCode = prereqCode.split('/').pop() || prereqCode;
             const selectedPrereq = modules.find(m =>
-                m.code === prereqCode &&
+                m.code === extractedPrereqCode &&
                 selectedModules.includes(m.uuid) &&
                 Math.min(...m.semesters) < currentSemester // Must be in earlier semester
             );
@@ -138,7 +233,10 @@ export const ModulePlanner = () => {
         });
     };
 
-
+    /**
+     * Handles the selection or deselection of a module.
+     * @param moduleUuid - The UUID of the module to select/deselect.
+     */
     const handleModuleSelection = (moduleUuid: string) => {
         const clickedModule = modules.find(m => m.uuid === moduleUuid);
         if (!clickedModule) return;
@@ -158,7 +256,8 @@ export const ModulePlanner = () => {
         } else {
             // Check prerequisites before allowing selection
             if (!arePrerequisitesFulfilled(clickedModule, currentSemester)) {
-                return; // Don't allow selection if prerequisites aren't met
+                alert('Prerequisites are not fulfilled for this module.');
+                return;
             }
 
             const existingSelectedInstance = modules.find(m =>
@@ -178,6 +277,11 @@ export const ModulePlanner = () => {
         }
     };
 
+    /**
+     * Retrieves all modules that depend on the specified module.
+     * @param moduleUuid - The UUID of the module.
+     * @returns An array of dependent modules.
+     */
     const getDependentModules = (moduleUuid: string): Module[] => {
         const selectedModule = modules.find(module => module.uuid === moduleUuid);
         if (!selectedModule) return [];
@@ -201,6 +305,10 @@ export const ModulePlanner = () => {
         return dependentModules;
     };
 
+    /**
+     * Deselects a module and recursively deselects its dependent modules.
+     * @param moduleUuid - The UUID of the module to deselect.
+     */
     const deselectModule = (moduleUuid: string) => {
         setSelectedModules(prev => prev.filter(uuid => uuid !== moduleUuid));
 
@@ -213,6 +321,9 @@ export const ModulePlanner = () => {
         });
     };
 
+    /**
+     * Confirms the deselection of a module and its dependents.
+     */
     const handleConfirmDeselection = () => {
         if (moduleToDeselect) {
             setSelectedModules(prev => prev.filter(uuid => uuid !== moduleToDeselect.uuid));
@@ -224,20 +335,68 @@ export const ModulePlanner = () => {
         }
     };
 
+    /**
+     * Checks if a module is selected.
+     * @param moduleUuid - The UUID of the module.
+     * @returns True if the module is selected, false otherwise.
+     */
     const isModuleSelected = (moduleUuid: string) =>
         selectedModules.includes(moduleUuid);
 
+    /**
+     * Retrieves the codes of all selected modules.
+     */
     const selectedModuleCodes = useMemo(() => {
         return modules
             .filter(m => selectedModules.includes(m.uuid))
             .map(m => m.code);
     }, [modules, selectedModules]);
 
+    /**
+     * Handles changes in the search input.
+     * @param e - The change event.
+     */
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
     };
 
-    // Modify filteredModules to use the new prerequisite check
+    /**
+     * Handles changes in the number of semesters.
+     * @param value - The new number of semesters.
+     */
+    const handleSemesterCountChange = (value: number) => {
+        if (!isNaN(value) && value > 0 && value <= 12) {
+            setNumberOfSemesters(value);
+        }
+    };
+
+    /**
+     * Handles changes in the layout selection.
+     * @param value - The selected layout.
+     */
+    const handleLayoutChange = (value: string) => {
+        setLayout(value);
+    };
+
+    /**
+     * Handles changes in the "Hide Unfulfilled" checkbox.
+     * @param checked - Whether the checkbox is checked.
+     */
+    const handleHideUnfulfilledChange = (checked: boolean) => {
+        setHideUnfulfilled(checked);
+    };
+
+    /**
+     * Handles changes in the semester type selection (FSS/HWS).
+     * @param value - The selected semester type.
+     */
+    const handleSemesterTypeChange = (value: 'FSS' | 'HWS') => {
+        setFirstSemesterType(value);
+    };
+
+    /**
+     * Filters modules based on search term and "Hide Unfulfilled" option.
+     */
     const filteredModules = useMemo(() => {
         let filtered = modules;
 
@@ -252,14 +411,18 @@ export const ModulePlanner = () => {
         if (hideUnfulfilled) {
             filtered = filtered.filter(module => {
                 const currentSemester = Math.min(...module.semesters);
-                return arePrerequisitesFulfilled(module, currentSemester) ||
-                    selectedModules.includes(module.uuid);
+                const fulfilled = arePrerequisitesFulfilled(module, currentSemester);
+                const isSelectedElsewhere = isModuleSelectedElsewhere(module);
+                return fulfilled && !isSelectedElsewhere;
             });
         }
 
         return filtered;
     }, [modules, searchTerm, hideUnfulfilled, selectedModules]);
 
+    /**
+     * Renders the progress drawer showing progress in each subject area.
+     */
     const renderProgressDrawer = () => {
         const progress = calculateSubjectAreaProgress();
 
@@ -278,10 +441,12 @@ export const ModulePlanner = () => {
                 <div className="space-y-6 p-4">
                     {subjectAreaRequirements.map(area => {
                         const currentCredits = progress.get(area.name) || 0;
-                        const progressPercentage = Math.min(
-                            100,
-                            (currentCredits / area.maxCredits) * 100
-                        );
+                        const progressPercentage = area.maxCredits > 0
+                            ? Math.min(
+                                100,
+                                (currentCredits / area.maxCredits) * 100
+                            )
+                            : 0;
 
                         const isOutOfLimits =
                             currentCredits < area.minCredits || currentCredits > area.maxCredits;
@@ -295,14 +460,16 @@ export const ModulePlanner = () => {
                                         className={`${barColor} h-full rounded transition-all duration-300`}
                                         style={{width: `${progressPercentage}%`}}
                                     />
-                                    <div
-                                        className="absolute h-3 w-0.5 bg-black top-0"
-                                        style={{
-                                            left: `${(area.minCredits / area.maxCredits) * 100}%`,
-                                            zIndex: 1,
-                                        }}
-                                        title={`Minimum required: ${area.minCredits} ECTS`}
-                                    />
+                                    {area.minCredits > 0 && (
+                                        <div
+                                            className="absolute h-3 w-0.5 bg-black top-0"
+                                            style={{
+                                                left: `${(area.minCredits / area.maxCredits) * 100}%`,
+                                                zIndex: 1,
+                                            }}
+                                            title={`Minimum required: ${area.minCredits} ECTS`}
+                                        />
+                                    )}
                                 </div>
                                 <span className="text-xs text-muted-foreground whitespace-nowrap">
                                     {currentCredits}/{area.minCredits}
@@ -321,66 +488,226 @@ export const ModulePlanner = () => {
         );
     };
 
-
+    /**
+     * Renders the semester columns based on the selected layout.
+     */
     const renderSemesterColumns = () => {
-        return (
-            <div className="flex flex-wrap gap-4 overflow-x-auto">
-                {availableSemesters.map(semester => (
-                    <Card key={semester} className="w-80 flex-shrink-0">
-                        <CardHeader>
-                            <CardTitle>Semester {semester}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2">
-                                {filteredModules
-                                    .filter(module => module.semesters.includes(semester))
-                                    .map(module => (
-                                        <ModuleCard
-                                            key={module.uuid}
-                                            module={module}
-                                            isSelected={isModuleSelected(module.uuid)}
-                                            onSelect={handleModuleSelection}
-                                            selectedModuleCodes={selectedModuleCodes}
-                                            selectedElsewhere={isModuleSelectedElsewhere(module)}
-                                            currentSemester={semester}
-                                            allModules={modules}
-                                            selectedModules={selectedModules}
-                                        />
-                                    ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-        );
+        if (layout === 'landscape') {
+            // Single column layout (1 × X)
+            return (
+                <div className="flex flex-col gap-4 w-full">
+                    {availableSemesters.map((semester) => {
+                        const modulesForSemester = filteredModules.filter(module => module.semesters.includes(semester));
+                        const semesterType = getSemesterType(semester);
+                        return (
+                            <Card key={semester} className="w-full max-w-none mx-0">
+                                <CardHeader>
+                                    <CardTitle>Semester {semester} ({semesterType})</CardTitle> {/* Adding semester type */}
+                                </CardHeader>
+                                <CardContent>
+                                    <div
+                                        className="grid gap-2 w-full"
+                                        style={{
+                                            gridTemplateColumns: `repeat(auto-fill, minmax(150px, 1fr))`,
+                                        }}
+                                    >
+                                        {modulesForSemester.map(module => (
+                                            <ModuleCard
+                                                key={module.uuid}
+                                                module={module}
+                                                isSelected={isModuleSelected(module.uuid)}
+                                                onSelect={handleModuleSelection}
+                                                selectedModuleCodes={selectedModuleCodes}
+                                                selectedElsewhere={isModuleSelectedElsewhere(module)}
+                                                currentSemester={semester}
+                                                allModules={modules}
+                                                selectedModules={selectedModules}
+                                            />
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
+                </div>
+            );
+        } else {
+            // Grid layouts (2 × X to 6 × X)
+            const columns = parseInt(layout.split('*')[0], 10) || 1;
+            const gridStyle = {
+                display: 'grid',
+                gridTemplateColumns: `repeat(${columns}, minmax(200px, 1fr))`,
+                gap: '1rem',
+            };
+
+            return (
+                <div style={gridStyle} className="w-full">
+                    {availableSemesters.map((semester) => {
+                        const modulesForSemester = filteredModules.filter(module => module.semesters.includes(semester));
+                        const semesterType = getSemesterType(semester);
+                        return (
+                            <Card key={semester} className="w-full max-w-none mx-0">
+                                <CardHeader>
+                                    <CardTitle>Semester {semester} ({semesterType})</CardTitle> {/* Adding semester type */}
+                                </CardHeader>
+                                <CardContent>
+                                    <div
+                                        className="grid gap-2 w-full"
+                                        style={{
+                                            gridTemplateColumns: `repeat(auto-fill, minmax(150px, 1fr))`,
+                                        }}
+                                    >
+                                        {modulesForSemester.map(module => (
+                                            <ModuleCard
+                                                key={module.uuid}
+                                                module={module}
+                                                isSelected={isModuleSelected(module.uuid)}
+                                                onSelect={handleModuleSelection}
+                                                selectedModuleCodes={selectedModuleCodes}
+                                                selectedElsewhere={isModuleSelectedElsewhere(module)}
+                                                currentSemester={semester}
+                                                allModules={modules}
+                                                selectedModules={selectedModules}
+                                            />
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
+                </div>
+            );
+        }
     };
 
-
     return (
-        <div className="container mx-auto p-4 max-w-full">
+        <div className="w-full mx-auto p-4 overflow-x-hidden">
             <h1 className="text-4xl font-bold mb-4">Module Planner</h1>
-            <div className="mb-4 flex flex-col-reverse sm:flex-row items-start sm:items-center gap-4">
-                <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                    placeholder="Search modules by name or code..."
-                    className="w-full sm:w-80 p-2 border border-gray-300 rounded-md"
-                />
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Checkbox
-                        id="hideUnfulfilled"
-                        checked={hideUnfulfilled}
-                        onCheckedChange={(checked) => setHideUnfulfilled(checked === true)}
+            <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full">
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        placeholder="Search modules by name or code..."
+                        className="w-full sm:w-80 p-2 border border-gray-300 rounded-md"
                     />
-                    <label htmlFor="hideUnfulfilled" className="text-sm font-bold">
-                        Hide modules with unfulfilled prerequisites
-                    </label>
                 </div>
+                {/* View Button */}
+                <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline">View</Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px] bg-white shadow-lg rounded-lg">
+                        <DialogHeader>
+                            <DialogTitle>View Settings</DialogTitle>
+                            <DialogDescription>
+                                Customize the layout and total number of semesters.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 p-4">
+                            {/* Number of Semesters */}
+                            <div className="flex items-center gap-2">
+                                <label htmlFor="semesterCount" className="text-sm font-bold">
+                                    Total Number of Semesters:
+                                </label>
+                                <input
+                                    type="number"
+                                    id="semesterCount"
+                                    min="1"
+                                    max="12"
+                                    value={numberOfSemesters}
+                                    onChange={(e) => handleSemesterCountChange(parseInt(e.target.value, 10))}
+                                    className="w-16 p-2 border border-gray-300 rounded-md"
+                                    title="Specify the total number of semesters"
+                                />
+                            </div>
+                            {/* Semester Type Selection */}
+                            <div className="flex items-center gap-2">
+                                <label htmlFor="semesterType" className="text-sm font-bold">
+                                    First Semester Type:
+                                </label>
+                                <select
+                                    id="semesterType"
+                                    value={firstSemesterType}
+                                    onChange={(e) => handleSemesterTypeChange(e.target.value as 'FSS' | 'HWS')}
+                                    className="p-2 border border-gray-300 rounded-md"
+                                >
+                                    <option value="FSS">Winter Semester (FSS)</option>
+                                    <option value="HWS">Summer Semester (HWS)</option>
+                                </select>
+                            </div>
+                            {/* Layout Selection */}
+                            <div>
+                                <label className="text-sm font-bold">Layout:</label>
+                                <RadioGroup value={layout} onValueChange={handleLayoutChange}
+                                            className="mt-2 space-y-2">
+                                    <div className="flex items-center">
+                                        <RadioGroupItem value="landscape" id="layout-landscape"/>
+                                        <label htmlFor="layout-landscape" className="ml-2">
+                                            Landscape (1 × X)
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <RadioGroupItem value="2x" id="layout-2x"/>
+                                        <label htmlFor="layout-2x" className="ml-2">
+                                            2 × X
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <RadioGroupItem value="3x" id="layout-3x"/>
+                                        <label htmlFor="layout-3x" className="ml-2">
+                                            3 × X
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <RadioGroupItem value="4x" id="layout-4x"/>
+                                        <label htmlFor="layout-4x" className="ml-2">
+                                            4 × X
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <RadioGroupItem value="5x" id="layout-5x"/>
+                                        <label htmlFor="layout-5x" className="ml-2">
+                                            5 × X
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <RadioGroupItem value="6x" id="layout-6x"/>
+                                        <label htmlFor="layout-6x" className="ml-2">
+                                            6 × X
+                                        </label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                            {/* Hide Modules Checkbox */}
+                            <div className="flex items-center">
+                                <Checkbox
+                                    id="hideUnfulfilled"
+                                    checked={hideUnfulfilled}
+                                    onCheckedChange={handleHideUnfulfilledChange}
+                                />
+                                <label htmlFor="hideUnfulfilled" className="ml-2 text-sm font-bold">
+                                    Hide modules with unfulfilled prerequisites
+                                </label>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
 
-            {renderSemesterColumns()}
+            {isLoading ? (
+                <p>Loading modules...</p>
+            ) : error ? (
+                <p className="text-red-500">{error}</p>
+            ) : (
+                renderSemesterColumns()
+            )}
 
+            {/* Confirmation Dialog for Deselecting Modules */}
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
                 <DialogContent className="sm:max-w-[425px] bg-white shadow-lg rounded-lg">
                     <DialogHeader>
@@ -404,6 +731,8 @@ export const ModulePlanner = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Progress Drawer */}
             <div className="fixed bottom-4 left-0 right-0 flex justify-center">
                 <Drawer>
                     <DrawerTrigger asChild>
@@ -417,3 +746,19 @@ export const ModulePlanner = () => {
         </div>
     );
 };
+
+/**
+ * Formats a module name by replacing underscores with spaces and capitalizing each word's first letter.
+ * @param name - The raw module name string.
+ * @returns The formatted module name.
+ */
+function formatModuleName(name: string): string {
+    return name
+        .replace(/_/g, ' ') // Replace underscores with spaces
+        .split(' ') // Split into words
+        .map((word) => {
+            if (word.length === 0) return word; // Handle empty strings
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(); // Capitalize first letter
+        })
+        .join(' '); // Rejoin into a single string
+}
