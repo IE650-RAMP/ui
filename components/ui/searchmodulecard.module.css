@@ -1,0 +1,7 @@
+/* components/SearchModuleCard.module.css */
+
+.searchModuleCard {
+    /* Add any specific styles if needed */
+    /* For example, adding a box shadow */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

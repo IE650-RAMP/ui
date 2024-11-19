@@ -301,7 +301,9 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                             {module.assessmentForm && module.assessmentForm.length > 0 && (
                                 <p><strong>Assessment Form:</strong> {module.assessmentForm.join(', ')}</p>
                             )}
-                            {/* ... other fields ... */}
+                            {module.offeredIn && module.offeredIn.length > 0 && (
+                                <p><strong>Offered In:</strong> {module.offeredIn.join(', ')}</p>
+                            )}
                         </div>
 
                         <button

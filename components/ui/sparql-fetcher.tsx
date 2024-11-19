@@ -1,6 +1,7 @@
 // sparql-fetcher.ts
 
 import NodeCache from 'node-cache';
+import fetchSparqlEndpoint from './fetchSparqlEndpoint';
 
 // Updated type definitions
 export type ModuleBinding = {
@@ -87,6 +88,117 @@ function formatModuleName(name: string): string {
  */
 function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/_/g, ' ');
+}
+
+// Implement the getAllModules function
+export async function getAllModules(): Promise<ModuleBinding[]> {
+    const query = `
+        PREFIX ramp: <http://ramp.uni-mannheim.de/>
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+        SELECT DISTINCT ?module
+            (GROUP_CONCAT(DISTINCT ?idLabel; separator="|") as ?ids)
+            (GROUP_CONCAT(DISTINCT ?nameLabel; separator="|") as ?names)
+            (GROUP_CONCAT(DISTINCT ?label; separator="|") as ?labels)
+            (GROUP_CONCAT(DISTINCT ?studyAreaLabel; separator="|") as ?studyAreaLabels)
+            (GROUP_CONCAT(DISTINCT STR(?prereq); separator="|") as ?prereqUris)
+            (GROUP_CONCAT(DISTINCT ?prereqLabel; separator="|") as ?prereqLabels)
+            (GROUP_CONCAT(DISTINCT ?additionalPrereqLabel; separator="|") as ?additionalPrereqLabels)
+            (GROUP_CONCAT(DISTINCT ?ects; separator="|") as ?ectsLabels)
+            (GROUP_CONCAT(DISTINCT ?examDuration; separator="|") as ?examDurationLabels)
+            (GROUP_CONCAT(DISTINCT ?assessmentLabel; separator="|") as ?assessmentLabels)
+            (GROUP_CONCAT(DISTINCT ?lecturerLabel; separator="|") as ?lecturerLabels)
+            (GROUP_CONCAT(DISTINCT ?personInChargeLabel; separator="|") as ?personInChargeLabels)
+            (GROUP_CONCAT(DISTINCT ?offeredInLabel; separator="|") as ?offeredInLabels)
+            (GROUP_CONCAT(DISTINCT ?recLiteratureLabel; separator="|") as ?recLiteratureLabels)
+            (GROUP_CONCAT(DISTINCT ?recSemesterLabel; separator="|") as ?recSemesterLabels)
+            (GROUP_CONCAT(DISTINCT ?workloadInPersonLabel; separator="|") as ?workloadInPersonLabels)
+            (GROUP_CONCAT(DISTINCT ?workloadSelfStudyLabel; separator="|") as ?workloadSelfStudyLabels)
+            (GROUP_CONCAT(DISTINCT ?furtherModuleLabel; separator="|") as ?furtherModuleLabels)
+            (GROUP_CONCAT(DISTINCT ?examDistLabel; separator="|") as ?examDistLabels)
+            (GROUP_CONCAT(DISTINCT ?assessmentFormLabel; separator="|") as ?assessmentFormLabels)
+        WHERE {
+            ?module rdf:type ramp:Module .
+            FILTER (STRSTARTS(STR(?module), "http://ramp.uni-mannheim.de/module/"))
+            OPTIONAL { ?module ramp:id ?id . ?id rdfs:label ?idLabel }
+            OPTIONAL { ?module ramp:name ?nameLabel }
+            OPTIONAL { ?module rdfs:label ?label }
+            OPTIONAL {
+                ?module ramp:isModuleOf ?studyArea .
+                ?studyArea rdf:type ramp:StudyArea .
+                ?studyArea rdfs:label ?studyAreaLabel
+            }
+            OPTIONAL { ?module ramp:hasPrerequisite ?prereq . ?prereq rdfs:label ?prereqLabel }
+            OPTIONAL { ?module ramp:additionalPrerequisite ?additionalPrereq . ?additionalPrereq rdfs:label ?additionalPrereqLabel }
+            OPTIONAL { ?module ramp:ects ?ects }
+            OPTIONAL { ?module ramp:examinationDuration ?examDuration }
+            OPTIONAL { ?module ramp:hasAssesment ?assessmentLabel }
+            OPTIONAL { ?module ramp:hasLecturer ?lecturer . ?lecturer rdfs:label ?lecturerLabel }
+            OPTIONAL { ?module ramp:hasPersonInCharge ?personInCharge . ?personInCharge rdfs:label ?personInChargeLabel }
+            OPTIONAL { ?module ramp:offeredIn ?offeredInLabel }
+            OPTIONAL { ?module ramp:recommendedLiterature ?recLiterature . ?recLiterature rdfs:label ?recLiteratureLabel }
+            OPTIONAL { ?module ramp:recommendedSemester ?recSemester . ?recSemester rdfs:label ?recSemesterLabel }
+            OPTIONAL { ?module ramp:workloadInPerson ?workloadInPerson . ?workloadInPerson rdfs:label ?workloadInPersonLabel }
+            OPTIONAL { ?module ramp:workloadSelfStudy ?workloadSelfStudy . ?workloadSelfStudy rdfs:label ?workloadSelfStudyLabel }
+            OPTIONAL { ?module ramp:hasFurtherModule ?furtherModule . ?furtherModule rdfs:label ?furtherModuleLabel }
+            OPTIONAL { ?module ramp:examinationDistribution ?examDist . ?examDist rdfs:label ?examDistLabel }
+            OPTIONAL { ?module ramp:hasAssessmentForm ?assessmentForm . ?assessmentForm rdfs:label ?assessmentFormLabel }
+        }
+        GROUP BY ?module
+    `;
+
+    try {
+        const response = await fetch('/api/sparql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({query}),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('SPARQL query failed:', errorData.error || response.statusText);
+            throw new Error(`SPARQL query failed: ${errorData.error || response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        console.log('SPARQL Response:', JSON.stringify(data, null, 2));
+
+        // Parse the SPARQL JSON response into ModuleBinding[]
+        const bindings: ModuleBinding[] = data.results.bindings.map((binding: any) => {
+            return {
+                module: binding.module.value,
+                ids: splitValues(binding.ids),
+                names: splitValues(binding.names).map(formatModuleName),
+                labels: splitValues(binding.labels).map(formatModuleName),
+                studyAreaLabels: splitValues(binding.studyAreaLabels).map(formatModuleName),
+                prereqUris: splitValues(binding.prereqUris),
+                prereqLabels: splitValues(binding.prereqLabels).map(formatModuleName),
+                additionalPrereqLabels: splitValues(binding.additionalPrereqLabels),
+                ectsLabels: parseNumberList(binding.ectsLabels),
+                examDurationLabels: parseNumberList(binding.examDurationLabels),
+                assessmentLabels: splitValues(binding.assessmentLabels),
+                lecturerLabels: splitValues(binding.lecturerLabels),
+                personInChargeLabels: splitValues(binding.personInChargeLabels),
+                offeredInLabels: splitValues(binding.offeredInLabels),
+                recLiteratureLabels: splitValues(binding.recLiteratureLabels),
+                recSemesterLabels: parseNumberList(binding.recSemesterLabels),
+                workloadInPersonLabels: parseNumberList(binding.workloadInPersonLabels),
+                workloadSelfStudyLabels: parseNumberList(binding.workloadSelfStudyLabels),
+                furtherModuleLabels: splitValues(binding.furtherModuleLabels),
+                examDistLabels: splitValues(binding.examDistLabels),
+                assessmentFormLabels: splitValues(binding.assessmentFormLabels),
+            };
+        });
+
+        return bindings;
+    } catch (error) {
+        console.error('Error fetching all modules:', error);
+        throw error;
+    }
 }
 
 /**
