@@ -2,8 +2,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import React, {useState, useEffect, useMemo} from 'react';
+import {Card, CardHeader, CardTitle, CardContent} from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -13,12 +13,11 @@ import {
     DialogDescription,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { getModules, ModuleBinding } from '@/components/ui/sparql-fetcher';
-import { v4 as uuidv4 } from 'uuid';
-import { ModuleCard } from './module-card';
+import {Button} from '@/components/ui/button';
+import {Checkbox} from "@/components/ui/checkbox";
+import {RadioGroup, RadioGroupItem} from "@/components/ui/radio-group";
+import {v4 as uuidv4} from 'uuid';
+import {ModuleCard} from './module-card';
 import {
     Drawer,
     DrawerClose,
@@ -29,7 +28,15 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
-import { ProgressBar } from './progressbar';
+import {ProgressBar} from './progressbar';
+import {
+    getModules,
+    ModuleBinding,
+    getStudyPrograms,
+    StudyProgram,
+    getStudyRequirements,
+    StudyRequirement
+} from '@/components/ui/sparql-fetcher';
 
 type Module = {
     uuid: string;
@@ -62,13 +69,13 @@ type SubjectAreaRequirement = {
 };
 
 const subjectAreaRequirements: SubjectAreaRequirement[] = [
-    { name: "Fundamentals", minCredits: 27, maxCredits: 27 },
-    { name: "Data Management", minCredits: 6, maxCredits: 24 },
-    { name: "Data Analytics", minCredits: 12, maxCredits: 36 },
-    { name: "Responsible Data Science", minCredits: 3, maxCredits: 7 },
-    { name: "Data Science Applications", minCredits: 0, maxCredits: 12 },
-    { name: "Projects and Seminars", minCredits: 14, maxCredits: 18 },
-    { name: "Master's Thesis", minCredits: 30, maxCredits: 30 }
+    {name: "Fundamentals", minCredits: 27, maxCredits: 27},
+    {name: "Data Management", minCredits: 6, maxCredits: 24},
+    {name: "Data Analytics", minCredits: 12, maxCredits: 36},
+    {name: "Responsible Data Science", minCredits: 3, maxCredits: 7},
+    {name: "Data Science Applications", minCredits: 0, maxCredits: 12},
+    {name: "Projects and Seminars", minCredits: 14, maxCredits: 18},
+    {name: "Master's Thesis", minCredits: 30, maxCredits: 30}
 ];
 
 /**
@@ -93,6 +100,11 @@ export const ModulePlanner = () => {
     const [error, setError] = useState<string | null>(null);
     const [numberOfSemesters, setNumberOfSemesters] = useState<number>(6); // Default to 6 semesters
     const [firstSemesterType, setFirstSemesterType] = useState<'FSS' | 'HWS'>('FSS');
+    const [studyPrograms, setStudyPrograms] = useState<StudyProgram[]>([]);
+    const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
+    const [selectedStudyProgramUri, setSelectedStudyProgramUri] = useState<string>('');
+    const [studyRequirements, setStudyRequirements] = useState<SubjectAreaRequirement[]>([]);
+
 
     // State for layout
     const [layout, setLayout] = useState<string>('landscape'); // Default to 'landscape'
@@ -101,8 +113,22 @@ export const ModulePlanner = () => {
     const [isViewDialogOpen, setIsViewDialogOpen] = useState<boolean>(false);
 
     useEffect(() => {
-        fetchModuleData();
-    }, [numberOfSemesters, firstSemesterType]); // Added firstSemesterType to dependencies
+        fetchStudyPrograms();
+    }, []);
+
+    useEffect(() => {
+        if (isFirstLoad) {
+            setIsViewDialogOpen(true);
+            setIsFirstLoad(false);
+        }
+    }, [isFirstLoad]);
+
+    useEffect(() => {
+        if (selectedStudyProgramUri) {
+            fetchModuleData();
+            fetchStudyRequirements();  // Add this line
+        }
+    }, [selectedStudyProgramUri, numberOfSemesters, firstSemesterType]);
 
     useEffect(() => {
         const storedSelectedModules = localStorage.getItem('selectedModules');
@@ -114,6 +140,38 @@ export const ModulePlanner = () => {
     useEffect(() => {
         localStorage.setItem('selectedModules', JSON.stringify(selectedModules));
     }, [selectedModules]);
+
+    const fetchStudyRequirements = async () => {
+        try {
+            const requirements = await getStudyRequirements(selectedStudyProgramUri);
+            console.log('Fetched study requirements:', requirements); // Add this line
+            if (requirements.length > 0) {
+                const formattedRequirements = requirements.map(req => ({
+                    name: req.label,
+                    minCredits: req.minEcts,
+                    maxCredits: req.maxEcts,
+                }));
+                setStudyRequirements(formattedRequirements);
+            } else {
+                setStudyRequirements([]);
+            }
+        } catch (error) {
+            console.error('Error fetching study requirements:', error);
+            setStudyRequirements([]);
+        }
+    };
+
+    const fetchStudyPrograms = async () => {
+        try {
+            const programs = await getStudyPrograms();
+            setStudyPrograms(programs);
+            if (programs.length > 0) {
+                setSelectedStudyProgramUri(programs[0].uri); // Set default selected program
+            }
+        } catch (error) {
+            console.error('Error fetching study programs:', error);
+        }
+    };
 
     /**
      * Determines the semester type (FSS/HWS) based on the first semester type and semester number.
@@ -134,7 +192,7 @@ export const ModulePlanner = () => {
         setError(null);
 
         try {
-            const bindings: ModuleBinding[] = await getModules();
+            const bindings: ModuleBinding[] = await getModules(selectedStudyProgramUri);
 
             // Transform SPARQL results into Module type
             const modulesWithUUID: Module[] = bindings.map(binding => ({
@@ -170,7 +228,7 @@ export const ModulePlanner = () => {
             const processedModules: Module[] = modulesWithUUID.flatMap(module => {
                 if (module.semesters.length === 0) {
                     // Assign to all semesters
-                    return Array.from({ length: numberOfSemesters }, (_, i) => ({
+                    return Array.from({length: numberOfSemesters}, (_, i) => ({
                         ...module,
                         uuid: uuidv4(),
                         semesters: [i + 1], // Semesters start at 1
@@ -181,7 +239,7 @@ export const ModulePlanner = () => {
             });
 
             // Determine unique semesters based on user input
-            const allSemesters = Array.from({ length: numberOfSemesters }, (_, i) => i + 1);
+            const allSemesters = Array.from({length: numberOfSemesters}, (_, i) => i + 1);
 
             setAvailableSemesters(allSemesters);
             setModules(processedModules);
@@ -201,7 +259,7 @@ export const ModulePlanner = () => {
         const progress = new Map<string, number>();
 
         // Initialize all subject areas with 0 credits
-        subjectAreaRequirements.forEach(area => {
+        studyRequirements.forEach(area => {
             const normalizedAreaName = normalizeName(area.name);
             progress.set(normalizedAreaName, 0);
         });
@@ -224,6 +282,7 @@ export const ModulePlanner = () => {
 
         return progress;
     };
+
 
     /**
      * Checks if a module is selected in another semester.
@@ -430,7 +489,8 @@ export const ModulePlanner = () => {
             filtered = filtered.filter(
                 module =>
                     module.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    module.code.toLowerCase().includes(searchTerm.toLowerCase())
+                    module.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    module.subjectArea.some(area => area.toLowerCase().includes(lowerSearch))
             );
         }
 
@@ -465,34 +525,38 @@ export const ModulePlanner = () => {
                     </DrawerDescription>
                 </DrawerHeader>
                 <div className="space-y-6 p-4">
-                    {subjectAreaRequirements.map(area => {
-                        const normalizedAreaName = normalizeName(area.name);
-                        const currentCredits = progress.get(normalizedAreaName) || 0;
-                        const progressPercentage = area.maxCredits > 0
-                            ? Math.min(
-                                100,
-                                (currentCredits / area.maxCredits) * 100
-                            )
-                            : 0;
+                    {studyRequirements.length > 0 ? (
+                        studyRequirements.map(area => {
+                            const normalizedAreaName = normalizeName(area.name);
+                            const currentCredits = progress.get(normalizedAreaName) || 0;
+                            const progressPercentage = area.maxCredits > 0
+                                ? Math.min(
+                                    100,
+                                    (currentCredits / area.maxCredits) * 100
+                                )
+                                : 0;
 
-                        const isOutOfLimits =
-                            currentCredits < area.minCredits || currentCredits > area.maxCredits;
+                            const isOutOfLimits =
+                                currentCredits < area.minCredits || currentCredits > area.maxCredits;
 
-                        return (
-                            <div key={area.name} className="flex items-center space-x-4">
-                                <div className="w-32">
-                                    <span className="text-sm font-medium">{area.name}</span>
+                            return (
+                                <div key={area.name} className="flex items-center space-x-4">
+                                    <div className="w-32">
+                                        <span className="text-sm font-medium">{area.name}</span>
+                                    </div>
+                                    <ProgressBar
+                                        percentage={progressPercentage}
+                                        isOutOfLimits={isOutOfLimits}
+                                        minCredits={area.minCredits}
+                                        maxCredits={area.maxCredits}
+                                        currentCredits={currentCredits}
+                                    />
                                 </div>
-                                <ProgressBar
-                                    percentage={progressPercentage}
-                                    isOutOfLimits={isOutOfLimits}
-                                    minCredits={area.minCredits}
-                                    maxCredits={area.maxCredits}
-                                    currentCredits={currentCredits}
-                                />
-                            </div>
-                        );
-                    })}
+                            );
+                        })
+                    ) : (
+                        <p>No Study Requirements</p>
+                    )}
                 </div>
                 <DrawerFooter>
                     <DrawerClose asChild>
@@ -502,6 +566,7 @@ export const ModulePlanner = () => {
             </DrawerContent>
         );
     };
+
 
     /**
      * Renders the semester columns based on the selected layout.
@@ -620,6 +685,24 @@ export const ModulePlanner = () => {
                                 Customize the layout and total number of semesters.
                             </DialogDescription>
                         </DialogHeader>
+                        {/* Study Program Selection */}
+                        <div className="flex items-center gap-2">
+                            <label htmlFor="studyProgram" className="text-sm font-bold">
+                                Study Program:
+                            </label>
+                            <select
+                                id="studyProgram"
+                                value={selectedStudyProgramUri}
+                                onChange={(e) => setSelectedStudyProgramUri(e.target.value)}
+                                className="p-2 border border-gray-300 rounded-md"
+                            >
+                                {studyPrograms.map(program => (
+                                    <option key={program.uri} value={program.uri}>
+                                        {program.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                         <div className="space-y-4 p-4">
                             {/* Number of Semesters */}
                             <div className="flex items-center gap-2">
@@ -658,37 +741,37 @@ export const ModulePlanner = () => {
                                 <RadioGroup value={layout} onValueChange={handleLayoutChange}
                                             className="mt-2 space-y-2">
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="landscape" id="layout-landscape" />
+                                        <RadioGroupItem value="landscape" id="layout-landscape"/>
                                         <label htmlFor="layout-landscape" className="ml-2">
                                             Landscape (1 × X)
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="2x" id="layout-2x" />
+                                        <RadioGroupItem value="2x" id="layout-2x"/>
                                         <label htmlFor="layout-2x" className="ml-2">
                                             2 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="3x" id="layout-3x" />
+                                        <RadioGroupItem value="3x" id="layout-3x"/>
                                         <label htmlFor="layout-3x" className="ml-2">
                                             3 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="4x" id="layout-4x" />
+                                        <RadioGroupItem value="4x" id="layout-4x"/>
                                         <label htmlFor="layout-4x" className="ml-2">
                                             4 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="5x" id="layout-5x" />
+                                        <RadioGroupItem value="5x" id="layout-5x"/>
                                         <label htmlFor="layout-5x" className="ml-2">
                                             5 × X
                                         </label>
                                     </div>
                                     <div className="flex items-center">
-                                        <RadioGroupItem value="6x" id="layout-6x" />
+                                        <RadioGroupItem value="6x" id="layout-6x"/>
                                         <label htmlFor="layout-6x" className="ml-2">
                                             6 × X
                                         </label>

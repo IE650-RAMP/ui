@@ -10,7 +10,7 @@ export type ModuleBinding = {
     labels: string[];
     studyAreaLabels: string[];
     studyProgramLabels: string[];
-    prereqUris: string[];           // Added prerequisite URIs
+    prereqUris: string[];
     prereqLabels: string[];
     additionalPrereqLabels?: string[];
     ectsLabels: number[];
@@ -30,7 +30,19 @@ export type ModuleBinding = {
     assessmentFormLabels?: string[];
 };
 
-const cache = new NodeCache({ stdTTL: 3600 }); // Cache with 1-hour TTL
+export type StudyRequirement = {
+    uri: string;
+    label: string;
+    minEcts: number;
+    maxEcts: number;
+};
+
+export type StudyProgram = {
+    uri: string;
+    label: string;
+};
+
+const cache = new NodeCache({stdTTL: 3600}); // Cache with 1-hour TTL
 
 /**
  * Splits a concatenated string into an array, handling empty or undefined values.
@@ -83,11 +95,12 @@ function normalizeName(name: string): string {
  * Implements caching to reduce redundant network requests.
  * @returns Promise resolving to an array of ModuleBinding objects.
  */
-export async function getModules(): Promise<ModuleBinding[]> {
-    const cacheKey = 'modulesData';
+export async function getModules(studyProgramUri: string): Promise<ModuleBinding[]> {
+    // Adjust the cache key to include the study program URI
+    const cacheKey = `modulesData-${studyProgramUri}`;
     const cachedData = cache.get<ModuleBinding[]>(cacheKey);
     if (cachedData) {
-        console.log('Returning cached module data.');
+        console.log('Returning cached module data for study program:', studyProgramUri);
         return cachedData;
     }
 
@@ -121,6 +134,7 @@ export async function getModules(): Promise<ModuleBinding[]> {
             (GROUP_CONCAT(DISTINCT ?assessmentFormLabel; separator="|") as ?assessmentFormLabels)
         WHERE {
             ?module rdf:type ramp:Module .
+            ?module ramp:isModuleOf <${studyProgramUri}> .  # Moved outside OPTIONAL to filter modules
             FILTER (STRSTARTS(STR(?module), "http://ramp.uni-mannheim.de/module/"))
             OPTIONAL { ?module ramp:id ?id . ?id rdfs:label ?idLabel }
             OPTIONAL { ?module ramp:name ?nameLabel }  # Adjusted here
@@ -162,7 +176,7 @@ export async function getModules(): Promise<ModuleBinding[]> {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ query }),
+            body: JSON.stringify({query}),
         });
 
         if (!response.ok) {
@@ -210,5 +224,107 @@ export async function getModules(): Promise<ModuleBinding[]> {
     } catch (error) {
         console.error('SPARQL query error:', error);
         throw error; // Ensure this is handled in your React components
+    }
+}
+
+export async function getStudyPrograms(): Promise<StudyProgram[]> {
+    const query = `
+    PREFIX ramp: <http://ramp.uni-mannheim.de/>
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+    SELECT DISTINCT ?studyProgram ?label 
+    WHERE {
+        ?studyProgram rdf:type ramp:StudyProgram .
+        OPTIONAL { ?studyProgram rdfs:label ?label }
+    }
+  `;
+
+    try {
+        const response = await fetch('/api/sparql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({query}),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('SPARQL query failed:', errorData.error || response.statusText);
+            throw new Error(`SPARQL query failed: ${errorData.error || response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        const programs: StudyProgram[] = data.results.bindings.map((binding: any) => ({
+            uri: binding.studyProgram.value,
+            label: binding.label ? binding.label.value : 'Unnamed Study Program',
+        }));
+
+        return programs;
+    } catch (error) {
+        console.error('Error fetching study programs:', error);
+        throw error;
+    }
+}
+
+export async function getStudyRequirements(studyProgramUri: string): Promise<StudyRequirement[]> {
+    const cacheKey = `studyRequirements-${studyProgramUri}`;
+    const cachedData = cache.get<StudyRequirement[]>(cacheKey);
+    if (cachedData) {
+        console.log('Returning cached study requirements for study program:', studyProgramUri);
+        return cachedData;
+    }
+
+    const query = `
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX ramp: <http://ramp.uni-mannheim.de/>
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    
+    SELECT ?s ?label 
+    (MIN(?ects) as ?minEcts)
+    (MAX(?ects) as ?maxEcts)
+    WHERE { 
+        <${studyProgramUri}> ramp:hasStudyArea ?s .
+        ?s rdf:type ramp:StudyArea . 
+        OPTIONAL { ?s ramp:ects ?ects . }
+        OPTIONAL { ?s rdfs:label ?label }
+    }
+    GROUP BY ?s ?label
+    ORDER BY ?s
+  `;
+
+    try {
+        const response = await fetch('/api/sparql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({query}),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('SPARQL query failed:', errorData.error || response.statusText);
+            throw new Error(`SPARQL query failed: ${errorData.error || response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        console.log('SPARQL response data:', data); // Add this line
+
+        const requirements: StudyRequirement[] = data.results.bindings.map((binding: any) => ({
+            uri: binding.s.value,
+            label: binding.label ? binding.label.value : 'Unnamed Study Area',
+            minEcts: binding.minEcts ? parseFloat(binding.minEcts.value) : 0,
+            maxEcts: binding.maxEcts ? parseFloat(binding.maxEcts.value) : 0,
+        }));
+
+        cache.set(cacheKey, requirements);
+        return requirements;
+    } catch (error) {
+        console.error('Error fetching study requirements:', error);
+        throw error;
     }
 }

@@ -161,17 +161,17 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
     const greyedOut = isModuleGreyedOut(module);
     const prerequisitesMet = arePrerequisitesMet(module);
 
-    // Define a color mapping for subject areas
-    const subjectAreaColorMap: { [key: string]: string } = {
-        "Fundamentals": "bg-blue-500",
-        "Data Management": "bg-green-500",
-        "Data Analytics": "bg-yellow-500",
-        "Responsible Data Science": "bg-purple-500",
-        "Data Science Applications": "bg-indigo-500",
-        "Projects and Seminars": "bg-pink-500",
-        "Master's Thesis": "bg-red-500",
-        // Add more mappings as needed
-    };
+    // Define a color mapping for subject areas (removed as background colors are not needed)
+    // const subjectAreaColorMap: { [key: string]: string } = {
+    //     "Fundamentals": "bg-blue-500",
+    //     "Data Management": "bg-green-500",
+    //     "Data Analytics": "bg-yellow-500",
+    //     "Responsible Data Science": "bg-purple-500",
+    //     "Data Science Applications": "bg-indigo-500",
+    //     "Projects and Seminars": "bg-pink-500",
+    //     "Master's Thesis": "bg-red-500",
+    //     // Add more mappings as needed
+    // };
 
     return (
         <>
@@ -207,43 +207,29 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                     }
                 }}
             >
+                {/* Subject Areas as Small Headers (Moved to Top) */}
+                {module.subjectArea && module.subjectArea.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                        {module.subjectArea.map((area, idx) => (
+                            <span
+                                key={idx}
+                                className="text-xs font-medium text-left"
+                                title={area}
+                                aria-label={`Subject Area: ${area}`}
+                            >
+                                {area}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
                 {/* Module Details */}
                 <h3 className="font-semibold">
                     {module.name} ({module.code})
                 </h3>
                 <p className="text-sm">ECTS: {module.ects}</p>
 
-                {/* Subject Areas as Badges */}
-                {module.subjectArea && module.subjectArea.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                        {module.subjectArea.map((area, idx) => {
-                            const badgeColor = subjectAreaColorMap[area] || "bg-gray-800";
-
-                            return (
-                                <span
-                                    key={idx}
-                                    className={`text-xs px-2 py-0.5 ${badgeColor} text-white rounded-full`}
-                                    title={area}
-                                    aria-label={`Subject Area: ${area}`}
-                                >
-                                    {area}
-                                </span>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {module.prerequisites.length > 0 && (
-                    <p className="text-xs mt-2">
-                        Prerequisites: {getPrerequisiteNames(module)}
-                    </p>
-                )}
-
-                {module.additionalPrereqList && module.additionalPrereqList.length > 0 && (
-                    <p className="text-xs mt-2">
-                        <strong>Additional Prerequisites:</strong> {module.additionalPrereqList.join(', ')}
-                    </p>
-                )}
+                {/* Removed Prerequisites and Additional Prerequisites from the Card */}
 
                 {/* Icons */}
                 <div className="flex justify-between items-center mt-4">
