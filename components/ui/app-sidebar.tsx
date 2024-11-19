@@ -23,16 +23,6 @@ const items = [
         url: "/search",
         icon: Search,
     },
-    {
-        title: "Calender",
-        url: "#",
-        icon: Calendar,
-    },
-    {
-        title: "Settings",
-        url: "#",
-        icon: Settings,
-    },
 ]
 
 export function AppSidebar() {

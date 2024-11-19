@@ -3,7 +3,43 @@
 import NodeCache from 'node-cache';
 import fetchSparqlEndpoint from './fetchSparqlEndpoint';
 
-// Updated type definitions
+// Utility functions
+function splitValues(value?: { value: string }): string[] {
+    if (!value || !value.value || value.value.trim() === '') {
+        return [];
+    }
+    return value.value.split('|').filter((v) => v.trim() !== '');
+}
+
+function parseNumberList(value?: { value: string }): number[] {
+    return splitValues(value).map(Number).filter((n) => !isNaN(n));
+}
+
+function formatModuleName(name: string): string {
+    return name
+        .replace(/_/g, ' ') // Replace underscores with spaces
+        .split(' ') // Split into words
+        .map((word) => {
+            if (word.length === 0) return word; // Handle empty strings
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(); // Capitalize first letter
+        })
+        .join(' '); // Rejoin into a single string
+}
+
+function normalizeName(name: string): string {
+    return name.trim().toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ');
+}
+
+function mapOfferedIn(label: string): 'FSS' | 'HWS' | string {
+    const normalized = normalizeName(label);
+    if (normalized === 'winter semester') return 'HWS';
+    if (normalized === 'summer semester') return 'FSS';
+    if (normalized === 'fss') return 'FSS';
+    if (normalized === 'hws') return 'HWS';
+    return label.toUpperCase(); // Ensure consistency
+}
+
+// Define the ModuleBinding type
 export type ModuleBinding = {
     module: string;
     ids: string[];
@@ -42,53 +78,7 @@ export type StudyProgram = {
     label: string;
 };
 
-const cache = new NodeCache({stdTTL: 3600}); // Cache with 1-hour TTL
-
-/**
- * Splits a concatenated string into an array, handling empty or undefined values.
- * @param value - The concatenated string.
- * @returns An array of strings.
- */
-function splitValues(value?: { value: string }): string[] {
-    if (!value || !value.value || value.value.trim() === '') {
-        return [];
-    }
-    return value.value.split('|').filter((v) => v.trim() !== '');
-}
-
-/**
- * Parses a concatenated string of numbers into an array of numbers.
- * @param value - The concatenated string.
- * @returns An array of numbers.
- */
-function parseNumberList(value?: { value: string }): number[] {
-    return splitValues(value).map(Number).filter((n) => !isNaN(n));
-}
-
-/**
- * Formats a module name by replacing underscores with spaces and capitalizing each word's first letter.
- * @param name - The raw module name string.
- * @returns The formatted module name.
- */
-function formatModuleName(name: string): string {
-    return name
-        .replace(/_/g, ' ') // Replace underscores with spaces
-        .split(' ') // Split into words
-        .map((word) => {
-            if (word.length === 0) return word; // Handle empty strings
-            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(); // Capitalize first letter
-        })
-        .join(' '); // Rejoin into a single string
-}
-
-/**
- * Normalizes names to ensure consistency.
- * @param name - The raw name.
- * @returns The normalized name.
- */
-function normalizeName(name: string): string {
-    return name.trim().toLowerCase().replace(/_/g, ' ');
-}
+const cache = new NodeCache({ stdTTL: 3600 }); // Cache with 1-hour TTL
 
 // Implement the getAllModules function
 export async function getAllModules(): Promise<ModuleBinding[]> {
@@ -129,7 +119,7 @@ export async function getAllModules(): Promise<ModuleBinding[]> {
                 ?studyArea rdf:type ramp:StudyArea .
                 ?studyArea rdfs:label ?studyAreaLabel
             }
-            OPTIONAL { ?module ramp:hasPrerequisite ?prereq . ?prereq rdfs:label ?prereqLabel }
+            OPTIONAL { ?module ramp:hasMandatoryPrerequisite ?prereq . ?prereq rdfs:label ?prereqLabel }
             OPTIONAL { ?module ramp:additionalPrerequisite ?additionalPrereq . ?additionalPrereq rdfs:label ?additionalPrereqLabel }
             OPTIONAL { ?module ramp:ects ?ects }
             OPTIONAL { ?module ramp:examinationDuration ?examDuration }
@@ -154,7 +144,7 @@ export async function getAllModules(): Promise<ModuleBinding[]> {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({query}),
+            body: JSON.stringify({ query }),
         });
 
         if (!response.ok) {
@@ -175,22 +165,24 @@ export async function getAllModules(): Promise<ModuleBinding[]> {
                 names: splitValues(binding.names).map(formatModuleName),
                 labels: splitValues(binding.labels).map(formatModuleName),
                 studyAreaLabels: splitValues(binding.studyAreaLabels).map(formatModuleName),
+                studyProgramLabels: splitValues(binding.studyProgramLabels).map(formatModuleName),
                 prereqUris: splitValues(binding.prereqUris),
                 prereqLabels: splitValues(binding.prereqLabels).map(formatModuleName),
                 additionalPrereqLabels: splitValues(binding.additionalPrereqLabels),
                 ectsLabels: parseNumberList(binding.ectsLabels),
                 examDurationLabels: parseNumberList(binding.examDurationLabels),
-                assessmentLabels: splitValues(binding.assessmentLabels),
+                examDistLabels: splitValues(binding.examDistLabels),
+                assessmentFormLabels: splitValues(binding.assessmentFormLabels),
                 lecturerLabels: splitValues(binding.lecturerLabels),
                 personInChargeLabels: splitValues(binding.personInChargeLabels),
-                offeredInLabels: splitValues(binding.offeredInLabels),
+                offeredInLabels: splitValues(binding.offeredInLabels).map(mapOfferedIn), // Normalize here
                 recLiteratureLabels: splitValues(binding.recLiteratureLabels),
                 recSemesterLabels: parseNumberList(binding.recSemesterLabels),
                 workloadInPersonLabels: parseNumberList(binding.workloadInPersonLabels),
                 workloadSelfStudyLabels: parseNumberList(binding.workloadSelfStudyLabels),
                 furtherModuleLabels: splitValues(binding.furtherModuleLabels),
-                examDistLabels: splitValues(binding.examDistLabels),
-                assessmentFormLabels: splitValues(binding.assessmentFormLabels),
+                hasPrereqLabels: splitValues(binding.hasPrereqLabels),
+                hasModuleLabels: splitValues(binding.hasModuleLabels),
             };
         });
 
@@ -202,8 +194,8 @@ export async function getAllModules(): Promise<ModuleBinding[]> {
 }
 
 /**
- * Fetches module data from the Next.js API proxy.
- * Implements caching to reduce redundant network requests.
+ * Fetches module data for a specific study program and caches the results.
+ * @param studyProgramUri - The URI of the study program.
  * @returns Promise resolving to an array of ModuleBinding objects.
  */
 export async function getModules(studyProgramUri: string): Promise<ModuleBinding[]> {
@@ -259,7 +251,7 @@ export async function getModules(studyProgramUri: string): Promise<ModuleBinding
                 ?studyProgram rdf:type ramp:StudyProgram .
                 ?studyProgram rdfs:label ?studyProgramLabel
             }
-            OPTIONAL { ?module ramp:hasPrerequisite ?prereq . ?prereq rdfs:label ?prereqLabel }
+            OPTIONAL { ?module ramp:hasMandatoryPrerequisite ?prereq . ?prereq rdfs:label ?prereqLabel }
             OPTIONAL { ?module ramp:additionalPrerequisite ?additionalPrereq . ?additionalPrereq rdfs:label ?additionalPrereqLabel }
             OPTIONAL { ?module ramp:ects ?ects }    
             OPTIONAL { ?module ramp:examinationDuration ?examDuration }
@@ -285,7 +277,7 @@ export async function getModules(studyProgramUri: string): Promise<ModuleBinding
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({query}),
+            body: JSON.stringify({ query }),
         });
 
         if (!response.ok) {
@@ -316,7 +308,7 @@ export async function getModules(studyProgramUri: string): Promise<ModuleBinding
                 assessmentFormLabels: splitValues(binding.assessmentFormLabels),
                 lecturerLabels: splitValues(binding.lecturerLabels),
                 personInChargeLabels: splitValues(binding.personInChargeLabels),
-                offeredInLabels: splitValues(binding.offeredInLabels),
+                offeredInLabels: splitValues(binding.offeredInLabels).map(mapOfferedIn), // Normalize here
                 recLiteratureLabels: splitValues(binding.recLiteratureLabels),
                 recSemesterLabels: parseNumberList(binding.recSemesterLabels),
                 workloadInPersonLabels: parseNumberList(binding.workloadInPersonLabels),
@@ -335,6 +327,10 @@ export async function getModules(studyProgramUri: string): Promise<ModuleBinding
     }
 }
 
+/**
+ * Fetches study programs from the SPARQL endpoint.
+ * @returns Promise resolving to an array of StudyProgram objects.
+ */
 export async function getStudyPrograms(): Promise<StudyProgram[]> {
     const query = `
     PREFIX ramp: <http://ramp.uni-mannheim.de/>
@@ -346,7 +342,7 @@ export async function getStudyPrograms(): Promise<StudyProgram[]> {
         ?studyProgram rdf:type ramp:StudyProgram .
         OPTIONAL { ?studyProgram rdfs:label ?label }
     }
-  `;
+    `;
 
     try {
         const response = await fetch('/api/sparql', {
@@ -354,7 +350,7 @@ export async function getStudyPrograms(): Promise<StudyProgram[]> {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({query}),
+            body: JSON.stringify({ query }),
         });
 
         if (!response.ok) {
@@ -377,6 +373,11 @@ export async function getStudyPrograms(): Promise<StudyProgram[]> {
     }
 }
 
+/**
+ * Fetches study requirements based on the selected study program.
+ * @param studyProgramUri - The URI of the study program.
+ * @returns Promise resolving to an array of StudyRequirement objects.
+ */
 export async function getStudyRequirements(studyProgramUri: string): Promise<StudyRequirement[]> {
     const cacheKey = `studyRequirements-${studyProgramUri}`;
     const cachedData = cache.get<StudyRequirement[]>(cacheKey);
@@ -401,7 +402,7 @@ export async function getStudyRequirements(studyProgramUri: string): Promise<Stu
     }
     GROUP BY ?s ?label
     ORDER BY ?s
-  `;
+    `;
 
     try {
         const response = await fetch('/api/sparql', {
@@ -409,7 +410,7 @@ export async function getStudyRequirements(studyProgramUri: string): Promise<Stu
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({query}),
+            body: JSON.stringify({ query }),
         });
 
         if (!response.ok) {
