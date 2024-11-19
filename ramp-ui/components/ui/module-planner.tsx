@@ -37,6 +37,7 @@ import {
     getStudyRequirements,
     StudyRequirement
 } from '@/components/ui/sparql-fetcher';
+import {debounce} from "lodash"
 
 type Module = {
     uuid: string;
@@ -45,11 +46,13 @@ type Module = {
     name: string;
     semesters: number[];
     ects: number;
-    prerequisites: string[];       // URIs of prerequisites
-    prerequisiteNames: string[];   // Names of prerequisites
+    prerequisites: string[];
+    prerequisiteNames: string[];
     subjectArea: string[];
     assessment?: string[];
     examDuration?: number[];
+    examDistribution?: string[];
+    assessmentForm?: string[];
     lecturer?: string[];
     personInCharge?: string[];
     offeredIn?: string[];
@@ -57,8 +60,6 @@ type Module = {
     workloadPerson?: number[];
     workloadSelf?: number[];
     furtherModule?: string[];
-    examDistribution?: string[];
-    assessmentForm?: string[];
     additionalPrereqList?: string[];
 };
 
@@ -68,23 +69,13 @@ type SubjectAreaRequirement = {
     maxCredits: number;
 };
 
-const subjectAreaRequirements: SubjectAreaRequirement[] = [
-    {name: "Fundamentals", minCredits: 27, maxCredits: 27},
-    {name: "Data Management", minCredits: 6, maxCredits: 24},
-    {name: "Data Analytics", minCredits: 12, maxCredits: 36},
-    {name: "Responsible Data Science", minCredits: 3, maxCredits: 7},
-    {name: "Data Science Applications", minCredits: 0, maxCredits: 12},
-    {name: "Projects and Seminars", minCredits: 14, maxCredits: 18},
-    {name: "Master's Thesis", minCredits: 30, maxCredits: 30}
-];
-
 /**
  * Normalizes names to ensure consistency.
  * @param name - The raw name.
  * @returns The normalized name.
  */
 function normalizeName(name: string): string {
-    return name.trim().toLowerCase().replace(/_/g, ' ');
+    return name.trim().toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ');
 }
 
 export const ModulePlanner = () => {
@@ -104,7 +95,6 @@ export const ModulePlanner = () => {
     const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
     const [selectedStudyProgramUri, setSelectedStudyProgramUri] = useState<string>('');
     const [studyRequirements, setStudyRequirements] = useState<SubjectAreaRequirement[]>([]);
-
 
     // State for layout
     const [layout, setLayout] = useState<string>('landscape'); // Default to 'landscape'
@@ -126,7 +116,7 @@ export const ModulePlanner = () => {
     useEffect(() => {
         if (selectedStudyProgramUri) {
             fetchModuleData();
-            fetchStudyRequirements();  // Add this line
+            fetchStudyRequirements();
         }
     }, [selectedStudyProgramUri, numberOfSemesters, firstSemesterType]);
 
@@ -140,26 +130,6 @@ export const ModulePlanner = () => {
     useEffect(() => {
         localStorage.setItem('selectedModules', JSON.stringify(selectedModules));
     }, [selectedModules]);
-
-    const fetchStudyRequirements = async () => {
-        try {
-            const requirements = await getStudyRequirements(selectedStudyProgramUri);
-            console.log('Fetched study requirements:', requirements); // Add this line
-            if (requirements.length > 0) {
-                const formattedRequirements = requirements.map(req => ({
-                    name: req.label,
-                    minCredits: req.minEcts,
-                    maxCredits: req.maxEcts,
-                }));
-                setStudyRequirements(formattedRequirements);
-            } else {
-                setStudyRequirements([]);
-            }
-        } catch (error) {
-            console.error('Error fetching study requirements:', error);
-            setStudyRequirements([]);
-        }
-    };
 
     const fetchStudyPrograms = async () => {
         try {
@@ -206,12 +176,13 @@ export const ModulePlanner = () => {
                             ? binding.labels.join(', ')
                             : 'Unnamed Module',
                 semesters: binding.recSemesterLabels.length > 0 ? binding.recSemesterLabels : [],
-                ects: binding.ectsLabels.length > 0 ? binding.ectsLabels[0] : 0,
                 prerequisites: binding.prereqUris || [],          // Use prerequisite URIs
                 prerequisiteNames: binding.prereqLabels || [],    // Names of prerequisites
                 subjectArea: binding.studyAreaLabels || [],
-                assessment: binding.assessmentLabels,
+                ects: binding.ectsLabels.length > 0 ? binding.ectsLabels[0] : 0,
                 examDuration: binding.examDurationLabels,
+                examDistribution: binding.examDistLabels,
+                assessmentForm: binding.assessmentFormLabels,
                 lecturer: binding.lecturerLabels,
                 personInCharge: binding.personInChargeLabels,
                 offeredIn: binding.offeredInLabels,
@@ -219,8 +190,6 @@ export const ModulePlanner = () => {
                 workloadPerson: binding.workloadInPersonLabels,
                 workloadSelf: binding.workloadSelfStudyLabels,
                 furtherModule: binding.furtherModuleLabels,
-                examDistribution: binding.examDistLabels,
-                assessmentForm: binding.assessmentFormLabels,
                 additionalPrereqList: binding.additionalPrereqLabels
             }));
 
@@ -248,6 +217,28 @@ export const ModulePlanner = () => {
             setError('Failed to load modules. Please try again later.');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    /**
+     * Fetches study requirements based on the selected study program.
+     */
+    const fetchStudyRequirements = async () => {
+        try {
+            const requirements = await getStudyRequirements(selectedStudyProgramUri);
+            if (requirements.length > 0) {
+                const formattedRequirements = requirements.map(req => ({
+                    name: req.label,
+                    minCredits: req.minEcts,
+                    maxCredits: req.maxEcts,
+                }));
+                setStudyRequirements(formattedRequirements);
+            } else {
+                setStudyRequirements([]);
+            }
+        } catch (error) {
+            console.error('Error fetching study requirements:', error);
+            setStudyRequirements([]);
         }
     };
 
@@ -282,7 +273,6 @@ export const ModulePlanner = () => {
 
         return progress;
     };
-
 
     /**
      * Checks if a module is selected in another semester.
@@ -480,16 +470,34 @@ export const ModulePlanner = () => {
     };
 
     /**
-     * Filters modules based on search term and "Hide Unfulfilled" option.
+     * Debounced search term to optimize performance.
+     */
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>(searchTerm);
+
+    useEffect(() => {
+        const handler = debounce(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 300); // 300ms debounce delay
+
+        handler();
+
+        return () => {
+            handler.cancel();
+        };
+    }, [searchTerm]);
+
+    /**
+     * Filters modules based on debounced search term and "Hide Unfulfilled" option.
      */
     const filteredModules = useMemo(() => {
         let filtered = modules;
 
-        if (searchTerm.trim()) {
+        if (debouncedSearchTerm.trim()) {
+            const lowerSearch = debouncedSearchTerm.toLowerCase();
             filtered = filtered.filter(
                 module =>
-                    module.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    module.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    module.name.toLowerCase().includes(lowerSearch) ||
+                    module.code.toLowerCase().includes(lowerSearch) ||
                     module.subjectArea.some(area => area.toLowerCase().includes(lowerSearch))
             );
         }
@@ -504,7 +512,7 @@ export const ModulePlanner = () => {
         }
 
         return filtered;
-    }, [modules, searchTerm, hideUnfulfilled, selectedModules]);
+    }, [modules, debouncedSearchTerm, hideUnfulfilled, selectedModules]);
 
     /**
      * Renders the progress drawer showing progress in each subject area.
@@ -566,7 +574,6 @@ export const ModulePlanner = () => {
             </DrawerContent>
         );
     };
-
 
     /**
      * Renders the semester columns based on the selected layout.
@@ -669,7 +676,7 @@ export const ModulePlanner = () => {
                         type="text"
                         value={searchTerm}
                         onChange={handleSearchChange}
-                        placeholder="Search modules by name or code..."
+                        placeholder="Search modules by name, code, or study area..."
                         className="w-full sm:w-80 p-2 border border-gray-300 rounded-md"
                     />
                 </div>

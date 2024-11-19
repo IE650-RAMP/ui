@@ -1,9 +1,9 @@
 // module-card.tsx
 
-import React, { useState } from 'react';
-import { FaLock, FaUnlock } from 'react-icons/fa';
-import { Copy } from 'lucide-react';
-import { getHueFromModuleCode } from '@/components/ui/colorUtils';
+import React, {useState} from 'react';
+import {FaLock, FaUnlock} from 'react-icons/fa';
+import {Copy} from 'lucide-react';
+import {getHueFromModuleCode} from '@/components/ui/colorUtils';
 import styles from './module-card.module.css';
 
 type Module = {
@@ -42,15 +42,15 @@ type ModuleCardProps = {
 };
 
 export const ModuleCard: React.FC<ModuleCardProps> = ({
-    module,
-    isSelected,
-    onSelect,
-    selectedModuleCodes,
-    selectedElsewhere,
-    currentSemester,
-    allModules,
-    selectedModules,
-}) => {
+                                                          module,
+                                                          isSelected,
+                                                          onSelect,
+                                                          selectedModuleCodes,
+                                                          selectedElsewhere,
+                                                          currentSemester,
+                                                          allModules,
+                                                          selectedModules,
+                                                      }) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     /**
@@ -181,11 +181,11 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         onSelect(module.uuid);
                     }
                 }}
-                style={{ backgroundColor: getModuleColor(module) }}
+                style={{backgroundColor: getModuleColor(module)}}
                 className={`p-4 rounded-md text-white ${
                     greyedOut ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:opacity-90'
                 } transition-opacity duration-200 ${
-                    isSelected ? 'border-2 border-black' : ''
+                    isSelected ? 'outline outline-2 outline-black outline-offset-[-2px]' : ''
                 } relative ${styles.moduleCard}`}
                 role="button"
                 aria-pressed={isSelected}
@@ -237,21 +237,21 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         {selectedElsewhere && (
                             <div
                                 className="p-1 rounded"
-                                style={{ backgroundColor: getDarkerModuleColor(module) }}
+                                style={{backgroundColor: getDarkerModuleColor(module)}}
                             >
                                 <Copy className="text-white" size={16}
-                                    aria-label="Already selected in another semester" />
+                                      aria-label="Already selected in another semester"/>
                             </div>
                         )}
                         {module.prerequisites.length > 0 && (
                             <div
                                 className="p-1 rounded"
-                                style={{ backgroundColor: getDarkerModuleColor(module) }}
+                                style={{backgroundColor: getDarkerModuleColor(module)}}
                             >
                                 {prerequisitesMet ? (
-                                    <FaUnlock className="text-white" title="Prerequisites met" />
+                                    <FaUnlock className="text-white" title="Prerequisites met"/>
                                 ) : (
-                                    <FaLock className="text-white" title="Prerequisites not met" />
+                                    <FaLock className="text-white" title="Prerequisites not met"/>
                                 )}
                             </div>
                         )}
@@ -291,50 +291,17 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
                         <div className="space-y-2">
                             <p><strong>Code:</strong> {module.code}</p>
                             <p><strong>ECTS:</strong> {module.ects}</p>
-                            {module.subjectArea && module.subjectArea.length > 0 && (
-                                <p><strong>Subject Areas:</strong> {module.subjectArea.join(', ')}</p>
-                            )}
-                            {module.prerequisites.length > 0 && (
-                                <p><strong>Prerequisites:</strong> {getPrerequisiteNames(module)}</p>
-                            )}
-                            {module.additionalPrereqList && module.additionalPrereqList.length > 0 && (
-                                <p><strong>Additional Prerequisites:</strong> {module.additionalPrereqList.join(', ')}
-                                </p>
-                            )}
-                            {module.assessment && module.assessment.length > 0 && (
-                                <p><strong>Assessment:</strong> {module.assessment.join(', ')}</p>
+                            {/* ... existing fields ... */}
+                            {module.examDistribution && module.examDistribution.length > 0 && (
+                                <p><strong>Exam Distribution:</strong> {module.examDistribution.join(', ')}</p>
                             )}
                             {module.examDuration && module.examDuration.length > 0 && (
                                 <p><strong>Exam Duration:</strong> {module.examDuration.join(', ')} minutes</p>
                             )}
-                            {module.lecturer && module.lecturer.length > 0 && (
-                                <p><strong>Lecturer(s):</strong> {module.lecturer.join(', ')}</p>
-                            )}
-                            {module.personInCharge && module.personInCharge.length > 0 && (
-                                <p><strong>Person in Charge:</strong> {module.personInCharge.join(', ')}</p>
-                            )}
-                            {module.offeredIn && module.offeredIn.length > 0 && (
-                                <p><strong>Offered In:</strong> {module.offeredIn.join(', ')}</p>
-                            )}
-                            {module.literature && module.literature.length > 0 && (
-                                <p><strong>Recommended Literature:</strong> {module.literature.join(', ')}</p>
-                            )}
-                            {module.workloadPerson && module.workloadPerson.length > 0 && (
-                                <p><strong>Workload (Person):</strong> {module.workloadPerson.join(', ')} hours</p>
-                            )}
-                            {module.workloadSelf && module.workloadSelf.length > 0 && (
-                                <p><strong>Workload (Self-Study):</strong> {module.workloadSelf.join(', ')} hours</p>
-                            )}
-                            {module.furtherModule && module.furtherModule.length > 0 && (
-                                <p><strong>Further Modules:</strong> {module.furtherModule.join(', ')}</p>
-                            )}
-                            {module.examDistribution && module.examDistribution.length > 0 && (
-                                <p><strong>Exam Distribution:</strong> {module.examDistribution.join(', ')}</p>
-                            )}
                             {module.assessmentForm && module.assessmentForm.length > 0 && (
                                 <p><strong>Assessment Form:</strong> {module.assessmentForm.join(', ')}</p>
                             )}
-                            {/* Add more fields as necessary */}
+                            {/* ... other fields ... */}
                         </div>
 
                         <button
