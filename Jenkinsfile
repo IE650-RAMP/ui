@@ -16,11 +16,7 @@ pipeline {
             steps {
                 container('kaniko') {
                     script {
-                        withCredentials([
-                            string(credentialsId: 'h4hn-service-user-token', variable: 'SERVICE_USER_TOKEN')
-                        ]) {
-                            buildDockerImage(buildArgs: ["GITHUB_AUTH_TOKEN=${SERVICE_USER_TOKEN}"])
-                        }
+                        buildDockerImage()
                     }
                 }
             }
