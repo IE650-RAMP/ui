@@ -4,7 +4,7 @@
 
 replicaCount: 1
 hostname: ""
-organization: IE650-RAMP
+organization: ie650-ramp
 repository: ui
 
 
