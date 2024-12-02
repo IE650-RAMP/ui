@@ -538,44 +538,31 @@ export const ModulePlanner = () => {
      */
     const filteredModules = useMemo(() => {
         let filtered = modules;
-
+      
         if (debouncedSearchTerm.trim()) {
-            const lowerSearch = debouncedSearchTerm.toLowerCase();
-            filtered = filtered.filter(
-                (module) =>
-                    module.name.toLowerCase().includes(lowerSearch) ||
-                    module.code.toLowerCase().includes(lowerSearch) ||
-                    module.subjectArea.some((area) => area.toLowerCase().includes(lowerSearch))
-            );
+          const lowerSearch = debouncedSearchTerm.toLowerCase();
+          filtered = filtered.filter(
+            (module) =>
+              module.name.toLowerCase().includes(lowerSearch) ||
+              module.code.toLowerCase().includes(lowerSearch) ||
+              module.subjectArea.some((area) => area.toLowerCase().includes(lowerSearch))
+          );
         }
-
+      
         // Hide modules based on prerequisites
         if (hideUnfulfilled) {
-            filtered = filtered.filter((module) => {
-                // If module has no prerequisites, always show it
-                if (module.prerequisiteCodes.length === 0) return true;
-
-                // Check if all prerequisites are in selectedModuleCodes
-                return module.prerequisiteCodes.every((prereqCode) => {
-                    // Check if prerequisite is selected in any semester
-                    return Object.values(selectedModules).some((semesterModules) => {
-                        return semesterModules.some((uuid) => {
-                            const selectedModule = modules.find((m) => m.uuid === uuid);
-                            return selectedModule?.code === prereqCode;
-                        });
-                    });
+          filtered = filtered.filter((module) => {
+            if (module.prerequisiteCodes.length === 0) return true;
+      
+            return module.prerequisiteCodes.every((prereqCode) => {
+              return Object.values(selectedModules).some((semesterModules) => {
+                return semesterModules.some((uuid) => {
+                  const selectedModule = modules.find((m) => m.uuid === uuid);
+                  return selectedModule?.code === prereqCode;
                 });
+              });
             });
-        }
-
-        // Hide already selected modules
-        if (hideSelected) {
-            filtered = filtered.filter((module) => {
-                // Check if module is not selected in any semester
-                return !Object.values(selectedModules).some((semesterModules) =>
-                    semesterModules.includes(module.uuid)
-                );
-            });
+          });
         }
 
         return filtered;
@@ -651,11 +638,12 @@ export const ModulePlanner = () => {
                     width: '100%',
                 };
 
-        return (
-            <div style={gridStyle}>
-                {availableSemesters.map((semester) => {
+            return (
+                <div style={gridStyle}>
+                    {availableSemesters.map((semester) => {
                     const semesterType = getSemesterType(semester);
-                    const modulesForSemester = filteredModules.filter((module) => {
+                    // Change 'const' to 'let' so we can reassign modulesForSemester
+                    let modulesForSemester = filteredModules.filter((module) => {
                         // Determine if the module should be displayed in this semester
                         if (module.recSemesterLabels && module.recSemesterLabels.length > 0) {
                             return module.recSemesterLabels.includes(semester);
@@ -666,8 +654,17 @@ export const ModulePlanner = () => {
                             return true;
                         }
                     });
-
-                    return (
+                    if (hideSelected) {
+                        const selectedModulesInOtherSemesters = Object.entries(selectedModules)
+                          .filter(([semStr]) => parseInt(semStr, 10) !== semester)
+                          .flatMap(([_, uuids]) => uuids);
+              
+                        modulesForSemester = modulesForSemester.filter((module) => {
+                          return !selectedModulesInOtherSemesters.includes(module.uuid);
+                        });
+                      }
+              
+                      return (
                         <Card key={semester} className="w-full max-w-none mx-0">
                             <CardHeader>
                                 <CardTitle>
