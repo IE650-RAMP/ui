@@ -52,6 +52,7 @@ export default function RootLayout({
                     </div>
                 </SidebarProvider>
             </body>
+            <script defer data-domain="ramp.h4hn.de" src="https://analytics.teckdigital.de/js/script.js"></script>
         </html>
     );
 }
