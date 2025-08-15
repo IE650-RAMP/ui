@@ -7,9 +7,6 @@ hostname: ""
 organization: ie650-ramp
 repository: ui
 
-
-
-
 image:
   #registry: registry.teckdigital.de
   pullPolicy: IfNotPresent
@@ -34,10 +31,12 @@ serviceAccount:
 podAnnotations: {}
 podLabels: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  {}
   # fsGroup: 2000
 
-securityContext: {}
+securityContext:
+  {}
   # capabilities:
   #   drop:
   #   - ALL
@@ -48,7 +47,7 @@ securityContext: {}
 service:
   type: ClusterIP
   port: 3000
-#  ports: 
+#  ports:
 #    - port: 443
 #      targetPort: https
 #      protocol: TCP
@@ -67,8 +66,18 @@ ingressRoute:
 #      services:
 #        - name: teckdigital-website
 #          port: 80:80
+tunnelBinding:
+  enabled: true
+  subject:
+    name: ""
+    target: ""
+    noTlsVerify: true
+  tunnelRef:
+    kind: ""
+    name: ""
 
-resources: {}
+resources:
+  {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
@@ -126,4 +135,3 @@ config:
       secretKeyRef:
         name: ""
         key: ""
-
